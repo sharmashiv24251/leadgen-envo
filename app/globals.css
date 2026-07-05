@@ -1,26 +1,84 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: oklch(0.14 0 0);
+  --surface: oklch(0.18 0 0);
+  --surface-raised: oklch(0.23 0 0);
+  --border: oklch(1 0 0 / 10%);
+  --border-strong: oklch(1 0 0 / 20%);
+  --ink: oklch(0.96 0 0);
+  --ink-muted: oklch(0.74 0 0);
+  --ink-faint: oklch(0.52 0 0);
+  --accent: oklch(0.75 0.19 149);
+  --accent-dim: oklch(0.75 0.19 149 / 12%);
+  --accent-ink: oklch(0.16 0.02 150);
+  --pending: oklch(0.78 0.13 80);
+  --pending-dim: oklch(0.78 0.13 80 / 12%);
+  --danger: oklch(0.68 0.19 25);
+  --danger-dim: oklch(0.68 0.19 25 / 12%);
+  --info: oklch(0.7 0.16 250);
+  --info-dim: oklch(0.7 0.16 250 / 12%);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
+  --color-accent: var(--accent);
+  --color-accent-dim: var(--accent-dim);
+  --color-accent-ink: var(--accent-ink);
+  --color-pending: var(--pending);
+  --color-pending-dim: var(--pending-dim);
+  --color-danger: var(--danger);
+  --color-danger-dim: var(--danger-dim);
+  --color-info: var(--info);
+  --color-info-dim: var(--info-dim);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background:
+    radial-gradient(
+      ellipse 80% 50% at 50% -10%,
+      oklch(0.2 0 0) 0%,
+      oklch(0.14 0 0) 60%
+    ),
+    var(--bg);
+  color: var(--ink);
+}
+
+@keyframes blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.animate-blink {
+  animation: blink 1.1s steps(1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import AgentsBanner from "@/components/AgentsBanner";
 import { activityFeed, dashboardStats, type ActivityTone } from "@/lib/data";
 
 const toneDotClasses: Record<ActivityTone, string> = {
@@ -50,6 +51,8 @@ function StatPanel({
 export default function DashboardView() {
   return (
     <div className="mx-auto w-full max-w-5xl flex-1 px-6 py-10 sm:px-10">
+      <AgentsBanner />
+
       <div className="mb-8">
         <h1 className="text-lg font-semibold text-ink">Command Center</h1>
         <p className="mt-1 text-sm text-ink-muted">

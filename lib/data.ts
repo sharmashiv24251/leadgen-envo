@@ -294,4 +294,184 @@ Sean`,
     status: "DRAFTED",
     isDemo: false,
   },
+  {
+    id: "andrew-jones",
+    name: "Andrew Jones",
+    title: "Managing Director",
+    company: "S Jones Containers",
+    location: "Aldridge, UK",
+    email: "andrew.jones@sjonescontainers.co.uk",
+    emailVerified: false,
+    daysAgo: 0,
+    subject: "reviews from the workshop team",
+    body: `Hi Andrew,
+
+I noticed some recent reviews on Indeed from your operational staff mentioning frustrations with management style and the culture in the workshop. When team feedback starts spilling onto public boards, it usually points to an HR gap that is getting hard to manage internally.
+
+We saw this play out recently in the Callum Harris v. Complex Logistics Ltd employment tribunal case over wage deductions, where operational oversights led to costly public rulings.
+
+At The HR Company, we step in to handle employee relations and compliance for manufacturing and logistics firms so you do not have to worry about grievances escalating to tribunals.
+
+Would you be open to a quick chat next week to see how we could support your management team?
+
+Best,
+Niall`,
+    intel: [
+      "Recent Indeed reviews from operational staff cite frustrations with management style, pay rates, and a \"cliquey or difficult\" workplace culture in the workshop.",
+      "~50 employees, no dedicated HR function identified.",
+      "Comparable: Callum Harris v. Complex Logistics Ltd (2026) — tribunal penalized unlawful wage deductions for a multi-drop delivery driver.",
+    ],
+    status: "DRAFTED",
+    isDemo: false,
+  },
+  {
+    id: "jeremy-lamb",
+    name: "Jeremy Lamb",
+    title: "Managing Director",
+    company: "EirEng Consulting Engineers",
+    location: "Dublin, IE & UK",
+    email: "jeremy.lamb@eireng.com",
+    emailVerified: false,
+    daysAgo: 0,
+    subject: "the new Bath office",
+    body: `Hi Jeremy,
+
+Congratulations on setting up the new EirEng office in Bath. Expanding into the UK brings a lot of momentum, but navigating a completely different set of employment laws and compliance standards can be a massive headache without a dedicated HR lead.
+
+Missteps in cross border HR can be very expensive. We recently saw a case with DAR Manufacturing Ltd facing a costly employment tribunal over wage deductions simply due to operational compliance oversights.
+
+We help Irish engineering firms scale into the UK by taking the entire HR compliance burden off your plate, ensuring your team is fully covered under UK employment law.
+
+Are you free for a quick call next Thursday to discuss how we can de-risk your expansion?
+
+Best,
+Niall`,
+    intel: [
+      "Recently opened a new UK entity and office in Bath — cross-border expansion into a new employment law jurisdiction.",
+      "~40 employees.",
+      "Comparable: Mr C Redmond v. DAR Manufacturing Ltd (2025/2026) — tribunal decision on unlawful deduction from wages due to poor compliance oversight.",
+    ],
+    status: "DRAFTED",
+    isDemo: false,
+  },
+  {
+    id: "mohammed-hussain",
+    name: "Mohammed Shahed Hussain",
+    title: "Director",
+    company: "Stirling Castle Construction Limited",
+    location: "Hounslow, UK",
+    email: "mohammed.hussain@stirlingcastleconstruction.co.uk",
+    emailVerified: false,
+    daysAgo: 0,
+    subject: "the Office Manager role",
+    body: `Hi Mohammed,
+
+I saw you are currently hiring an Office Manager in Hounslow. Construction firms often try to patch the HR gap by rolling those responsibilities into an office management role, but expecting one person to handle both operations and employment compliance is incredibly risky.
+
+A recent 2026 employment tribunal case involving Palmers Patisserie resulted in serious penalties just for failing to provide proper written employment particulars to staff.
+
+We partner with construction businesses to handle contracts, compliance, and employee relations properly, removing the risk of tribunal claims so your office team can actually focus on running the business.
+
+Would you be open to a brief call next week to see if this model makes sense for Stirling Castle?
+
+Best,
+Niall`,
+    intel: [
+      "Advertising for a full-time Office Manager to handle general office operations and admin — no dedicated HR role.",
+      "~30-40 employees (SME).",
+      "Comparable: G Dobrovolskyte v. Palmers Patisserie Manufacturing Ltd (2026) — tribunal on breach of contract and failure to provide written employment particulars.",
+    ],
+    status: "DRAFTED",
+    isDemo: false,
+  },
+  {
+    id: "james-gilbert",
+    name: "James Gilbert",
+    title: "Managing Director",
+    company: "G B Hydraulics Ltd",
+    location: "Thatcham, UK",
+    email: "james.gilbert@gbhydraulics.com",
+    emailVerified: false,
+    daysAgo: 0,
+    subject: "patching the HR gap",
+    body: `Hi James,
+
+I noticed G B Hydraulics is looking for an Office Manager to run your day to day administration. Handing complex HR issues to an administrative hire is a common move for growing engineering firms, but it leaves you highly exposed on the compliance front.
+
+We just saw the 2026 Callum Harris v. Complex Logistics tribunal case result in a severe penalty over simple wage deduction errors that an experienced HR team would have caught.
+
+At The HR Company, we act as your dedicated HR department. We take on the compliance and employee relations risk directly, which is far safer and more cost effective than relying on an office manager.
+
+Do you have ten minutes next Tuesday for a quick chat about this?
+
+Best,
+Niall`,
+    intel: [
+      "Advertising for an Office Manager to oversee day-to-day office housekeeping and admin — HR gap being patched informally.",
+      "~30+ employees.",
+      "Comparable: Callum Harris v. Complex Logistics Ltd (2026) — tribunal penalized unlawful wage deductions.",
+    ],
+    status: "DRAFTED",
+    isDemo: false,
+  },
+  {
+    id: "william-duenas",
+    name: "William Jay Duenas",
+    title: "Director",
+    company: "Satoshi Solutions Ltd",
+    location: "Addlestone, UK",
+    email: "william.duenas@satoshisolutions.co.uk",
+    emailVerified: false,
+    daysAgo: 0,
+    subject: "HR compliance at Satoshi Solutions",
+    body: `Hi William,
+
+I saw you are hiring an Office Manager to coordinate your hospitality services. It is tempting to roll HR duties into a broad operational role, but managing employee relations and compliance requires specialist focus that an office manager rarely has.
+
+A recent 2026 tribunal case involving Palmers Patisserie led to heavy penalties over simple holiday pay and contract breaches. These are exactly the kinds of oversights that happen when HR is patched together informally.
+
+The HR Company completely removes this risk. We step in to manage your employment compliance and staff relations, letting your team focus entirely on delivering exceptional hospitality.
+
+Are you open to a very brief call next Wednesday to see if we are a fit?
+
+Best,
+Niall`,
+    intel: [
+      "Advertising for an Office Manager to coordinate services and champion hospitality standards — no dedicated HR function.",
+      "~30-50 employees.",
+      "Comparable: G Dobrovolskyte v. Palmers Patisserie Manufacturing Ltd (2026) — tribunal on failure to provide employment particulars, breach of contract, and holiday pay disputes.",
+    ],
+    status: "DRAFTED",
+    isDemo: false,
+  },
+  {
+    id: "maurice-ryan",
+    name: "Maurice Ryan",
+    title: "Managing Director",
+    company: "P J Edwards & Co",
+    location: "Dublin, IE & UK",
+    email: "maurice.ryan@pjedwards.ie",
+    emailVerified: false,
+    daysAgo: 0,
+    subject: "expanding into Milton Keynes",
+    body: `Hi Maurice,
+
+Great to see P J Edwards setting up the new UK base in Milton Keynes. Expanding across the water is a huge step, but managing a cross border workforce without a dedicated HR director usually leads to critical compliance blind spots.
+
+The recent employment tribunal involving DAR Manufacturing Ltd showed exactly how costly simple wage deduction oversights can be under strict UK employment laws.
+
+We help Irish construction firms manage their UK operations by acting as your fully outsourced HR department, ensuring you remain entirely compliant and protected from tribunal risks as you scale.
+
+Would you be open to a quick call next week to discuss how we can support the new office?
+
+Best,
+Niall`,
+    intel: [
+      "Recently opened a new UK entity and office base in Milton Keynes — cross-border expansion.",
+      "~40-60 employees.",
+      "Comparable: Mr C Redmond v. DAR Manufacturing Ltd (2025/2026) — tribunal on unlawful deduction from wages under UK employment law.",
+    ],
+    status: "DRAFTED",
+    isDemo: false,
+  },
 ];

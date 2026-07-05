@@ -11,12 +11,12 @@ function StatPanel({
   label,
   value,
   tone = "default",
-  size = "default",
+  emphasis = "default",
 }: {
   label: string;
   value: string;
   tone?: "default" | "accent" | "muted";
-  size?: "default" | "small";
+  emphasis?: "hero" | "default" | "quiet";
 }) {
   const valueClasses =
     tone === "accent"
@@ -25,14 +25,22 @@ function StatPanel({
         ? "text-ink-muted"
         : "text-ink";
 
+  const valueSizeClasses =
+    emphasis === "hero" ? "text-5xl font-bold" : emphasis === "quiet" ? "text-xl" : "text-3xl";
+
+  const labelClasses = emphasis === "quiet" ? "text-ink-faint" : "text-ink-muted";
+
+  const containerClasses =
+    emphasis === "hero"
+      ? "border-accent/40 bg-accent-dim"
+      : "border-border bg-surface";
+
   return (
-    <div className="flex flex-col gap-3 rounded-[4px] border border-border bg-surface p-5">
-      <span className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">
+    <div className={`flex flex-col gap-3 rounded-[4px] border p-5 ${containerClasses}`}>
+      <span className={`font-mono text-[11px] uppercase tracking-wider ${labelClasses}`}>
         {label}
       </span>
-      <span
-        className={`font-mono tabular-nums ${size === "small" ? "text-xl" : "text-3xl"} ${valueClasses}`}
-      >
+      <span className={`font-mono tabular-nums ${valueSizeClasses} ${valueClasses}`}>
         {value}
       </span>
     </div>
@@ -51,22 +59,28 @@ export default function DashboardView() {
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4">
         <StatPanel
-          label="Emails Delivered"
-          value={dashboardStats.emailsDelivered.toLocaleString("en-US")}
+          label="Reply Rate"
+          value={`${dashboardStats.replyRatePct.toFixed(1)}%`}
+          tone="accent"
+          emphasis="hero"
         />
         <StatPanel
           label="Bounce Rate"
           value={`${dashboardStats.bounceRatePct.toFixed(1)}%`}
           tone={dashboardStats.bounceRatePct < 3 ? "accent" : "default"}
+          emphasis="quiet"
         />
         <StatPanel
-          label="Reply Rate"
-          value={`${dashboardStats.replyRatePct.toFixed(1)}%`}
-          tone="accent"
+          label="Emails Delivered"
+          value={dashboardStats.emailsDelivered.toLocaleString("en-US")}
+          tone="muted"
+          emphasis="quiet"
         />
         <StatPanel
           label="Total Drafted"
           value={dashboardStats.totalDrafted.toLocaleString("en-US")}
+          tone="muted"
+          emphasis="quiet"
         />
       </div>
 
@@ -76,9 +90,10 @@ export default function DashboardView() {
         </h2>
         <div className="overflow-hidden rounded-[4px] border border-border bg-surface">
           {activityFeed.map((event, i) => (
-            <div
+            <Link
               key={event.id}
-              className={`flex items-center gap-3 px-4 py-3 ${i !== 0 ? "border-t border-border" : ""}`}
+              href={`/emails/${event.prospectId}`}
+              className={`flex items-center gap-3 px-4 py-3 transition-colors hover:bg-accent-dim ${i !== 0 ? "border-t border-border" : ""}`}
             >
               <span
                 className={`h-1.5 w-1.5 shrink-0 rounded-full ${toneDotClasses[event.tone]}`}
@@ -88,7 +103,7 @@ export default function DashboardView() {
                 {event.timeAgo}
               </span>
               <span className="text-sm text-ink">{event.description}</span>
-            </div>
+            </Link>
           ))}
         </div>
       </div>

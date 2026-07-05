@@ -16,8 +16,6 @@
   --pending-dim: oklch(0.78 0.13 80 / 12%);
   --danger: oklch(0.68 0.19 25);
   --danger-dim: oklch(0.68 0.19 25 / 12%);
-  --info: oklch(0.7 0.16 250);
-  --info-dim: oklch(0.7 0.16 250 / 12%);
 }
 
 @theme inline {
@@ -36,8 +34,6 @@
   --color-pending-dim: var(--pending-dim);
   --color-danger: var(--danger);
   --color-danger-dim: var(--danger-dim);
-  --color-info: var(--info);
-  --color-info-dim: var(--info-dim);
   --font-sans: var(--font-inter);
   --font-mono: var(--font-jetbrains-mono);
 }

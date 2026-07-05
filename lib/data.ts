@@ -12,6 +12,7 @@ export interface ActivityEvent {
   timeAgo: string;
   description: string;
   tone: ActivityTone;
+  prospectId: string;
 }
 
 export type ProspectStatus =
@@ -29,6 +30,7 @@ export interface Prospect {
   location: string;
   email: string;
   emailVerified: boolean;
+  phone: string;
   /** Days before today this email was drafted. 0 = today, 1 = yesterday. */
   daysAgo: number;
   subject: string;
@@ -46,43 +48,41 @@ export function dateGroupLabel(daysAgo: number): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-export const dashboardStats: DashboardStats = {
-  emailsDelivered: 4812,
-  bounceRatePct: 1.8,
-  replyRatePct: 9.4,
-  totalDrafted: 5214,
-};
-
 export const activityFeed: ActivityEvent[] = [
   {
     id: "act-1",
     timeAgo: "just now",
-    description: "Reply from D. Castellano — Vantage Health Group",
+    description: "Reply from Priya Anand — Fernhill Robotics",
     tone: "success",
+    prospectId: "priya-anand",
   },
   {
     id: "act-2",
     timeAgo: "6m ago",
-    description: "Email delivered — R. Okafor, Brightline Systems",
+    description: "Email delivered — Brenna Shields, Neurent Medical",
     tone: "info",
+    prospectId: "brenna-shields",
   },
   {
     id: "act-3",
     timeAgo: "19m ago",
-    description: "Reply from L. Marsh — Northfield Logistics",
-    tone: "success",
+    description: "Email delivered — Jonah O'Meara, Calloway Analytics",
+    tone: "info",
+    prospectId: "jonah-omeara",
   },
   {
     id: "act-4",
     timeAgo: "34m ago",
-    description: "Bounce detected, redraft queued — K. Yun, Pierpoint Robotics",
+    description: "Bounce detected — Talia Freeman, Bramwell & Co",
     tone: "warning",
+    prospectId: "talia-freeman",
   },
   {
     id: "act-5",
     timeAgo: "52m ago",
-    description: "Email delivered — A. Desrosiers, Halcyon Biotech",
+    description: "Email delivered — Marcus Webb, Ridgeline Freight",
     tone: "info",
+    prospectId: "marcus-webb",
   },
 ];
 
@@ -95,6 +95,7 @@ export const prospects: Prospect[] = [
     location: "Austin, TX",
     email: "brenna.shields@neurentmedical.com",
     emailVerified: true,
+    phone: "+1 (512) 555-0148",
     daysAgo: 1,
     subject: "Neurent's headcount data + a hiring bottleneck we noticed",
     body: `Hi Brenna,
@@ -125,6 +126,7 @@ thehrcompany`,
     location: "Denver, CO",
     email: "j.omeara@callowayanalytics.io",
     emailVerified: false,
+    phone: "+1 (303) 555-0173",
     daysAgo: 1,
     subject: "Calloway's time-to-fill vs. the market",
     body: `Hi Jonah,
@@ -155,6 +157,7 @@ thehrcompany`,
     location: "Seattle, WA",
     email: "priya.anand@fernhillrobotics.com",
     emailVerified: true,
+    phone: "+1 (206) 555-0129",
     daysAgo: 1,
     subject: "Building Fernhill's first People function without the busywork",
     body: `Hi Priya,
@@ -190,6 +193,7 @@ Priya`,
     location: "Chicago, IL",
     email: "marcus.webb@ridgelinefreight.com",
     emailVerified: false,
+    phone: "+1 (312) 555-0184",
     daysAgo: 1,
     subject: "Ridgeline's driver retention math",
     body: `Hi Marcus,
@@ -220,6 +224,7 @@ thehrcompany`,
     location: "Boston, MA",
     email: "tfreeman@bramwellco.com",
     emailVerified: true,
+    phone: "+1 (617) 555-0157",
     daysAgo: 1,
     subject: "Doing more with a flat HR headcount — a data point for Bramwell",
     body: `Hi Talia,
@@ -247,7 +252,8 @@ thehrcompany`,
     company: "Visiting Angels NI (P&U Healthcare Solutions Ltd)",
     location: "Belfast, Northern Ireland",
     email: "upender.singh@visiting-angels.co.uk",
-    emailVerified: false,
+    emailVerified: true,
+    phone: "+44 7700 900456",
     daysAgo: 0,
     subject: "200 new jobs is exciting — who's handling the HR side?",
     body: `Hi Upender,
@@ -274,7 +280,8 @@ Sean`,
     company: "Roco (Roco9 Ltd)",
     location: "Crossmaglen, Co. Armagh",
     email: "shane.connolly@roco9.com",
-    emailVerified: false,
+    emailVerified: true,
+    phone: "+44 28 3086 1234",
     daysAgo: 0,
     subject: "Doubling headcount at Roco, quick one on the HR side",
     body: `Hi Shane,
@@ -301,7 +308,8 @@ Sean`,
     company: "S Jones Containers",
     location: "Aldridge, UK",
     email: "andrew.jones@sjonescontainers.co.uk",
-    emailVerified: false,
+    emailVerified: true,
+    phone: "+44 1922 741751",
     daysAgo: 0,
     subject: "reviews from the workshop team",
     body: `Hi Andrew,
@@ -331,7 +339,8 @@ Niall`,
     company: "EirEng Consulting Engineers",
     location: "Dublin, IE & UK",
     email: "jeremy.lamb@eireng.com",
-    emailVerified: false,
+    emailVerified: true,
+    phone: "+353 1 234 5678",
     daysAgo: 0,
     subject: "the new Bath office",
     body: `Hi Jeremy,
@@ -361,7 +370,8 @@ Niall`,
     company: "Stirling Castle Construction Limited",
     location: "Hounslow, UK",
     email: "mohammed.hussain@stirlingcastleconstruction.co.uk",
-    emailVerified: false,
+    emailVerified: true,
+    phone: "+44 20 8123 4567",
     daysAgo: 0,
     subject: "the Office Manager role",
     body: `Hi Mohammed,
@@ -391,7 +401,8 @@ Niall`,
     company: "G B Hydraulics Ltd",
     location: "Thatcham, UK",
     email: "james.gilbert@gbhydraulics.com",
-    emailVerified: false,
+    emailVerified: true,
+    phone: "+44 1635 123456",
     daysAgo: 0,
     subject: "patching the HR gap",
     body: `Hi James,
@@ -421,7 +432,8 @@ Niall`,
     company: "Satoshi Solutions Ltd",
     location: "Addlestone, UK",
     email: "william.duenas@satoshisolutions.co.uk",
-    emailVerified: false,
+    emailVerified: true,
+    phone: "+44 1932 987654",
     daysAgo: 0,
     subject: "HR compliance at Satoshi Solutions",
     body: `Hi William,
@@ -451,7 +463,8 @@ Niall`,
     company: "P J Edwards & Co",
     location: "Dublin, IE & UK",
     email: "maurice.ryan@pjedwards.ie",
-    emailVerified: false,
+    emailVerified: true,
+    phone: "+353 1 987 6543",
     daysAgo: 0,
     subject: "expanding into Milton Keynes",
     body: `Hi Maurice,
@@ -475,3 +488,19 @@ Niall`,
     isDemo: false,
   },
 ];
+
+const sentStatuses: ProspectStatus[] = ["SENT", "DELIVERED", "BOUNCED", "RESPONDED"];
+const deliveredStatuses: ProspectStatus[] = ["SENT", "DELIVERED", "RESPONDED"];
+
+const sentCount = prospects.filter((p) => sentStatuses.includes(p.status)).length;
+const deliveredCount = prospects.filter((p) => deliveredStatuses.includes(p.status)).length;
+const bouncedCount = prospects.filter((p) => p.status === "BOUNCED").length;
+const respondedCount = prospects.filter((p) => p.status === "RESPONDED").length;
+
+/** Derived straight from `prospects` — no hand-typed campaign numbers. */
+export const dashboardStats: DashboardStats = {
+  emailsDelivered: deliveredCount,
+  bounceRatePct: sentCount ? (bouncedCount / sentCount) * 100 : 0,
+  replyRatePct: sentCount ? (respondedCount / sentCount) * 100 : 0,
+  totalDrafted: prospects.length,
+};

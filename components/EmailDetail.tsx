@@ -1,6 +1,8 @@
 "use client";
 
 import Chip from "@/components/Chip";
+import CopyBadge from "@/components/CopyBadge";
+import { PhoneIcon } from "@/components/icons";
 import type { Prospect } from "@/lib/data";
 
 function buildGmailComposeUrl(prospect: Prospect): string {
@@ -15,6 +17,10 @@ function buildGmailComposeUrl(prospect: Prospect): string {
     .join("&");
 
   return `https://mail.google.com/mail/?${params}`;
+}
+
+function toTelHref(phone: string): string {
+  return `tel:${phone.replace(/[^\d+]/g, "")}`;
 }
 
 export default function EmailDetail({ prospect }: { prospect: Prospect }) {
@@ -44,9 +50,17 @@ export default function EmailDetail({ prospect }: { prospect: Prospect }) {
                   {prospect.emailVerified ? "Verified" : "Unverified"}
                 </Chip>
               </div>
-              <span className="font-mono text-xs text-ink-muted">
-                {prospect.email}
-              </span>
+              <CopyBadge value={prospect.email} tone="email" />
+              <div className="flex items-center gap-1.5">
+                <CopyBadge value={prospect.phone} tone="phone" />
+                <a
+                  href={toTelHref(prospect.phone)}
+                  title={`Call ${prospect.phone}`}
+                  className="inline-flex items-center justify-center rounded-[3px] border border-pending/40 bg-pending-dim p-1.5 text-pending transition-colors hover:bg-pending/20"
+                >
+                  <PhoneIcon />
+                </a>
+              </div>
             </div>
           </div>
         </div>
@@ -108,12 +122,12 @@ export default function EmailDetail({ prospect }: { prospect: Prospect }) {
         </div>
 
         {prospect.response && (
-          <div className="rounded-[4px] border border-info/40 bg-info-dim p-5">
+          <div className="rounded-[4px] border border-accent/40 bg-accent-dim p-5">
             <div className="mb-4 flex items-center gap-2">
               <h2 className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">
                 Reply Received
               </h2>
-              <Chip tone="info">Responded</Chip>
+              <Chip tone="accent">Responded</Chip>
             </div>
             <p className="max-w-[70ch] whitespace-pre-wrap text-sm leading-relaxed text-ink">
               {prospect.response}

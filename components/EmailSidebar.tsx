@@ -1,11 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import Chip from "@/components/Chip";
-import { prospects, dateGroupLabel, type Prospect } from "@/lib/data";
+import {
+  prospects,
+  dateGroupLabel,
+  type Prospect,
+  type ProspectStatus,
+} from "@/lib/data";
 import { statusTone } from "@/lib/status";
+
+const STATUS_FILTERS: { value: ProspectStatus; label: string }[] = [
+  { value: "DRAFTED", label: "Drafted" },
+  { value: "DELIVERED", label: "Delivered" },
+  { value: "BOUNCED", label: "Bounced" },
+  { value: "RESPONDED", label: "Responded" },
+];
 
 function groupByDate(list: Prospect[]): [number, Prospect[]][] {
   const map = new Map<number, Prospect[]>();
@@ -17,9 +29,61 @@ function groupByDate(list: Prospect[]): [number, Prospect[]][] {
   return [...map.entries()].sort((a, b) => a[0] - b[0]);
 }
 
-export default function EmailSidebar() {
+function parseStatusFilter(raw: string | null): ProspectStatus | null {
+  const upper = raw?.toUpperCase();
+  return STATUS_FILTERS.find((f) => f.value === upper)?.value ?? null;
+}
+
+function StatusFilterBar({ activeStatus }: { activeStatus: ProspectStatus | null }) {
   const pathname = usePathname();
-  const groups = groupByDate(prospects);
+
+  function filterHref(value: ProspectStatus | null) {
+    if (!value) return pathname;
+    return `${pathname}?status=${value.toLowerCase()}`;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2 border-b border-border px-4 py-3">
+      <Link
+        href={filterHref(null)}
+        className={`rounded-full border px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider transition-colors ${
+          activeStatus === null
+            ? "border-accent/40 bg-accent-dim text-accent"
+            : "border-border text-ink-muted hover:text-ink"
+        }`}
+      >
+        All
+      </Link>
+      {STATUS_FILTERS.map((f) => {
+        const isActive = activeStatus === f.value;
+        return (
+          <Link
+            key={f.value}
+            href={filterHref(f.value)}
+            className={`rounded-full border px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider transition-colors ${
+              isActive
+                ? "border-accent/40 bg-accent-dim text-accent"
+                : "border-border text-ink-muted hover:text-ink"
+            }`}
+          >
+            {f.label}
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
+function EmailSidebarContent() {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const activeStatus = parseStatusFilter(searchParams.get("status"));
+
+  const filteredProspects = activeStatus
+    ? prospects.filter((p) => p.status === activeStatus)
+    : prospects;
+
+  const groups = groupByDate(filteredProspects);
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
 
   function toggle(daysAgo: number) {
@@ -31,14 +95,18 @@ export default function EmailSidebar() {
     });
   }
 
+  const queryString = activeStatus ? `?status=${activeStatus.toLowerCase()}` : "";
+
   return (
-    <aside className="flex max-h-64 shrink-0 flex-col border-b border-border overflow-y-auto lg:h-auto lg:max-h-none lg:w-80 lg:border-b-0 lg:border-r">
+    <aside className="flex max-h-64 shrink-0 flex-col border-b border-border overflow-y-auto lg:h-auto lg:max-h-none lg:w-96 lg:border-b-0 lg:border-r">
       <div className="sticky top-0 flex items-center gap-2 border-b border-border bg-surface px-4 py-3 font-mono text-[11px] uppercase tracking-wider text-ink-muted">
         Prospects
         <span className="rounded-[3px] border border-border px-1.5 py-0.5 text-ink-faint">
-          {prospects.length}
+          {filteredProspects.length}
         </span>
       </div>
+
+      <StatusFilterBar activeStatus={activeStatus} />
 
       {groups.map(([daysAgo, group]) => {
         const isCollapsed = collapsed.has(daysAgo);
@@ -47,7 +115,7 @@ export default function EmailSidebar() {
             <button
               type="button"
               onClick={() => toggle(daysAgo)}
-              className="flex w-full items-center justify-between gap-2 px-4 py-2 font-mono text-[11px] uppercase tracking-wider text-ink-muted hover:text-ink"
+              className="flex w-full items-center justify-between gap-2 px-4 py-2.5 font-mono text-[11px] uppercase tracking-wider text-ink-muted hover:text-ink"
             >
               <span className="flex items-center gap-2">
                 <span aria-hidden>{isCollapsed ? "▸" : "▾"}</span>
@@ -67,9 +135,9 @@ export default function EmailSidebar() {
                   return (
                     <li key={prospect.id} className="border-t border-border">
                       <Link
-                        href={`/emails/${prospect.id}`}
+                        href={`/emails/${prospect.id}${queryString}`}
                         aria-current={isSelected ? "page" : undefined}
-                        className={`flex w-full flex-col gap-1.5 border-l-2 px-4 py-3 text-left transition-colors ${
+                        className={`flex w-full flex-col gap-2 border-l-2 px-4 py-4 text-left transition-colors ${
                           isSelected
                             ? "border-l-accent bg-accent-dim"
                             : "border-l-transparent hover:bg-surface"
@@ -105,5 +173,13 @@ export default function EmailSidebar() {
         );
       })}
     </aside>
+  );
+}
+
+export default function EmailSidebar() {
+  return (
+    <Suspense fallback={<aside className="max-h-64 shrink-0 border-b border-border lg:h-auto lg:max-h-none lg:w-96 lg:border-b-0 lg:border-r" />}>
+      <EmailSidebarContent />
+    </Suspense>
   );
 }

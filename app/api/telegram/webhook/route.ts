@@ -60,7 +60,7 @@ export async function POST(request: Request) {
       const command = text.trim().split(/\s+/)[0].split("@")[0];
 
       let reply: string;
-      if (command === "/help") {
+      if (command === "/help" || command === "/start") {
         reply = HELP_TEXT;
       } else if (command in COMMAND_STATUS) {
         reply = formatStatusReply(COMMAND_STATUS[command]);

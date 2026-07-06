@@ -33,7 +33,7 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 
 Webhook lives at `app/api/telegram/webhook/route.ts`. It reads `TG_BOT_TOKEN` and `APP_URL` from the environment — set both in Vercel's project env vars (never commit them).
 
-Commands: `/generate_leads`, `/responded`, `/bounced`, `/help`. No login step; every command reads `lib/data.ts` directly.
+Commands: `/generate_leads`, `/responded`, `/bounced`, `/help` (`/start` gives the same reply as `/help`). No login step; every command reads `lib/data.ts` directly.
 
 > Telegram command names only allow `a-z0-9_` — no hyphens. A hyphenated name (e.g. `/generate-leads`) gets split by Telegram's client into a command entity plus trailing plain text, so tapping the highlighted part sends a broken command.
 
@@ -51,6 +51,7 @@ Also register the command list so Telegram shows a `/` menu with descriptions in
 curl -X POST "https://api.telegram.org/bot$TG_BOT_TOKEN/setMyCommands" \
   -H "Content-Type: application/json" \
   -d '{"commands": [
+    {"command": "start", "description": "List available commands"},
     {"command": "generate_leads", "description": "Prospects with drafted emails"},
     {"command": "responded", "description": "Prospects who replied"},
     {"command": "bounced", "description": "Prospects whose emails bounced"},

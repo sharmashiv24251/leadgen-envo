@@ -43,13 +43,13 @@ export default function EmailDetail({
       <div className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-8 sm:px-8">
         <Link
           href={backHref}
-          className="inline-flex w-fit items-center gap-1.5 font-mono text-xs uppercase tracking-wider text-ink-muted transition-colors hover:text-ink lg:hidden"
+          className="inline-flex w-fit items-center gap-1.5 text-xs font-medium text-ink-muted transition-colors hover:text-ink lg:hidden"
         >
           <span aria-hidden>←</span>
           Back to list
         </Link>
 
-        <div className="rounded-[4px] border border-border bg-surface p-5">
+        <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow-panel-sm)]">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h1 className="text-lg font-semibold text-ink">{prospect.name}</h1>
@@ -73,7 +73,7 @@ export default function EmailDetail({
                 <a
                   href={toTelHref(prospect.phone)}
                   title={`Call ${prospect.phone}`}
-                  className="inline-flex items-center justify-center rounded-[3px] border border-pending/40 bg-pending-dim p-1.5 text-pending transition-colors hover:bg-pending/20"
+                  className="inline-flex items-center justify-center rounded-lg border border-pending/30 bg-pending-dim p-1.5 text-pending transition-colors hover:bg-pending/20"
                 >
                   <PhoneIcon />
                 </a>
@@ -83,15 +83,15 @@ export default function EmailDetail({
         </div>
 
         <div className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-          <div className="rounded-[4px] border border-border bg-surface p-5">
-            <h2 className="mb-4 font-mono text-[11px] uppercase tracking-wider text-ink-muted">
+          <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow-panel-sm)]">
+            <h2 className="mb-4 text-xs font-medium uppercase tracking-wide text-ink-muted">
               Why This Angle
             </h2>
             <ul className="flex flex-col gap-4">
               {prospect.intel.map((point, i) => (
                 <li key={i} className="flex gap-3">
                   <span
-                    className="mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-[3px] border border-accent/40 bg-accent-dim font-mono text-[10px] text-accent"
+                    className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-accent/30 bg-accent-dim font-mono text-[10px] text-accent"
                     aria-hidden
                   >
                     {i + 1}
@@ -104,31 +104,31 @@ export default function EmailDetail({
             </ul>
           </div>
 
-          <div className="rounded-[4px] border border-border bg-surface p-5">
+          <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow-panel-sm)]">
             <div className="mb-4 flex items-center justify-between gap-4">
-              <h2 className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">
+              <h2 className="text-xs font-medium uppercase tracking-wide text-ink-muted">
                 Email Draft
               </h2>
               <button
                 type="button"
                 onClick={handleSend}
-                className="shrink-0 rounded-[3px] bg-accent px-4 py-2 font-mono text-xs font-medium uppercase tracking-wider text-accent-ink transition-opacity hover:opacity-90"
+                className="shrink-0 rounded-lg bg-accent px-4 py-2 text-xs font-medium text-accent-ink transition-opacity hover:opacity-90"
               >
                 Send via Gmail
               </button>
             </div>
 
             <div className="mb-4">
-              <span className="mb-1.5 block font-mono text-[11px] uppercase tracking-wider text-ink-muted">
+              <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-ink-muted">
                 Subject
               </span>
-              <div className="rounded-[3px] border border-border bg-bg px-3 py-2 text-sm text-ink">
+              <div className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-ink">
                 {prospect.subject}
               </div>
             </div>
 
             <div>
-              <span className="mb-1.5 block font-mono text-[11px] uppercase tracking-wider text-ink-muted">
+              <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-ink-muted">
                 Body
               </span>
               <p className="max-w-[70ch] whitespace-pre-wrap text-sm leading-relaxed text-ink">
@@ -139,9 +139,9 @@ export default function EmailDetail({
         </div>
 
         {prospect.response && (
-          <div className="rounded-[4px] border border-accent/40 bg-accent-dim p-5">
+          <div className="rounded-xl border border-accent/30 bg-accent-dim p-5">
             <div className="mb-4 flex items-center gap-2">
-              <h2 className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">
+              <h2 className="text-xs font-medium uppercase tracking-wide text-ink-muted">
                 Reply Received
               </h2>
               <Chip tone="accent">Responded</Chip>

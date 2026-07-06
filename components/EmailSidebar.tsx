@@ -43,13 +43,13 @@ function StatusFilterBar({ activeStatus }: { activeStatus: ProspectStatus | null
   }
 
   return (
-    <div className="flex flex-wrap gap-2 border-b border-border px-4 py-3">
+    <div className="flex flex-wrap gap-1.5 border-b border-border px-4 py-3">
       <Link
         href={filterHref(null)}
-        className={`rounded-full border px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider transition-colors ${
+        className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
           activeStatus === null
-            ? "border-accent/40 bg-accent-dim text-accent"
-            : "border-border text-ink-muted hover:text-ink"
+            ? "border-accent/30 bg-accent-dim text-accent"
+            : "border-transparent text-ink-muted hover:bg-surface-raised hover:text-ink"
         }`}
       >
         All
@@ -60,10 +60,10 @@ function StatusFilterBar({ activeStatus }: { activeStatus: ProspectStatus | null
           <Link
             key={f.value}
             href={filterHref(f.value)}
-            className={`rounded-full border px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider transition-colors ${
+            className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
               isActive
-                ? "border-accent/40 bg-accent-dim text-accent"
-                : "border-border text-ink-muted hover:text-ink"
+                ? "border-accent/30 bg-accent-dim text-accent"
+                : "border-transparent text-ink-muted hover:bg-surface-raised hover:text-ink"
             }`}
           >
             {f.label}
@@ -99,9 +99,9 @@ function EmailSidebarContent() {
 
   return (
     <aside className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:flex-none lg:w-96 lg:border-r lg:border-border">
-      <div className="sticky top-0 flex items-center gap-2 border-b border-border bg-surface px-4 py-3 font-mono text-[11px] uppercase tracking-wider text-ink-muted">
+      <div className="sticky top-0 flex items-center gap-2 border-b border-border bg-surface px-4 py-3 text-xs font-medium uppercase tracking-wide text-ink-muted">
         Prospects
-        <span className="rounded-[3px] border border-border px-1.5 py-0.5 text-ink-faint">
+        <span className="rounded-full border border-border px-2 py-0.5 text-ink-faint">
           {filteredProspects.length}
         </span>
       </div>
@@ -115,7 +115,7 @@ function EmailSidebarContent() {
             <button
               type="button"
               onClick={() => toggle(daysAgo)}
-              className="flex w-full items-center justify-between gap-2 px-4 py-2.5 font-mono text-[11px] uppercase tracking-wider text-ink-muted hover:text-ink"
+              className="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-ink-muted transition-colors hover:text-ink"
             >
               <span className="flex items-center gap-2">
                 <span aria-hidden>{isCollapsed ? "▸" : "▾"}</span>
@@ -137,10 +137,10 @@ function EmailSidebarContent() {
                       <Link
                         href={`/emails/${prospect.id}${queryString}`}
                         aria-current={isSelected ? "page" : undefined}
-                        className={`flex w-full flex-col gap-2 border-l-2 px-4 py-4 text-left transition-colors ${
+                        className={`flex w-full flex-col gap-2 px-4 py-4 text-left transition-colors ${
                           isSelected
-                            ? "border-l-accent bg-accent-dim"
-                            : "border-l-transparent hover:bg-surface"
+                            ? "bg-accent-dim"
+                            : "hover:bg-surface"
                         }`}
                       >
                         <div className="flex items-center justify-between gap-2">

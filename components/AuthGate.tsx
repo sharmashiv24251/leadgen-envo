@@ -19,7 +19,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   if (!verified) {
     return (
       <div className="flex flex-1 items-center justify-center">
-        <p className="animate-pulse font-mono text-xs uppercase tracking-wider text-ink-muted">
+        <p className="animate-pulse text-xs font-medium uppercase tracking-wide text-ink-muted">
           verifying access…
         </p>
       </div>

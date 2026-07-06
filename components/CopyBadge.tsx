@@ -53,7 +53,7 @@ export default function CopyBadge({
       type="button"
       onClick={handleCopy}
       title="Click to copy"
-      className={`inline-flex items-center gap-1.5 rounded-[3px] border px-2 py-1 font-mono text-xs transition-colors ${toneClasses[tone]}`}
+      className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 font-mono text-xs transition-colors ${toneClasses[tone]}`}
     >
       {tone === "email" ? <MailIcon className="shrink-0" /> : <PhoneIcon className="shrink-0" />}
       <span>{value}</span>

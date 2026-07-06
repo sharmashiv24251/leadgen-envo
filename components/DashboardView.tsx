@@ -27,18 +27,18 @@ function StatPanel({
         : "text-ink";
 
   const valueSizeClasses =
-    emphasis === "hero" ? "text-5xl font-bold" : emphasis === "quiet" ? "text-xl" : "text-3xl";
+    emphasis === "hero" ? "text-5xl font-semibold" : emphasis === "quiet" ? "text-xl" : "text-3xl";
 
   const labelClasses = emphasis === "quiet" ? "text-ink-faint" : "text-ink-muted";
 
   const containerClasses =
     emphasis === "hero"
-      ? "border-accent/40 bg-accent-dim"
-      : "border-border bg-surface";
+      ? "border-accent/30 bg-accent-dim"
+      : "border-border bg-surface shadow-[var(--shadow-panel-sm)]";
 
   return (
-    <div className={`flex flex-col gap-3 rounded-[4px] border p-5 ${containerClasses}`}>
-      <span className={`font-mono text-[11px] uppercase tracking-wider ${labelClasses}`}>
+    <div className={`flex flex-col gap-3 rounded-xl border p-5 ${containerClasses}`}>
+      <span className={`text-xs font-medium uppercase tracking-wide ${labelClasses}`}>
         {label}
       </span>
       <span className={`font-mono tabular-nums ${valueSizeClasses} ${valueClasses}`}>
@@ -88,15 +88,15 @@ export default function DashboardView() {
       </div>
 
       <div className="mt-10">
-        <h2 className="mb-3 font-mono text-[11px] uppercase tracking-wider text-ink-muted">
+        <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-ink-muted">
           Recent Activity
         </h2>
-        <div className="overflow-hidden rounded-[4px] border border-border bg-surface">
+        <div className="overflow-hidden rounded-xl border border-border bg-surface shadow-[var(--shadow-panel-sm)]">
           {activityFeed.map((event, i) => (
             <Link
               key={event.id}
               href={`/emails/${event.prospectId}`}
-              className={`flex items-center gap-3 px-4 py-3 transition-colors hover:bg-accent-dim ${i !== 0 ? "border-t border-border" : ""}`}
+              className={`flex items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-raised ${i !== 0 ? "border-t border-border" : ""}`}
             >
               <span
                 className={`h-1.5 w-1.5 shrink-0 rounded-full ${toneDotClasses[event.tone]}`}
@@ -114,7 +114,7 @@ export default function DashboardView() {
       <div className="mt-8">
         <Link
           href="/emails"
-          className="inline-flex items-center gap-2 font-mono text-sm text-accent transition-colors hover:text-ink"
+          className="inline-flex items-center gap-2 text-sm font-medium text-accent transition-colors hover:text-ink"
         >
           View outreach feed →
         </Link>

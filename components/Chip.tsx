@@ -16,7 +16,7 @@ export default function Chip({
 }) {
   return (
     <span
-      className={`inline-flex shrink-0 items-center rounded-[3px] border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider ${toneClasses[tone]}`}
+      className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${toneClasses[tone]}`}
     >
       {children}
     </span>

@@ -29,6 +29,20 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
+## Telegram bot
+
+Webhook lives at `app/api/telegram/webhook/route.ts`. It reads `TG_BOT_TOKEN` and `APP_URL` from the environment — set both in Vercel's project env vars (never commit them).
+
+Commands: `/generate-leads`, `/responded`, `/bounced`, `/help`. No login step; every command reads `lib/data.ts` directly.
+
+After deploying, register the webhook once (replace the token and set `APP_URL` to your deployed domain):
+
+```bash
+curl -X POST "https://api.telegram.org/bot$TG_BOT_TOKEN/setWebhook" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "'"$APP_URL"'/api/telegram/webhook"}'
+```
+
 ## Deploy on Vercel
 
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.

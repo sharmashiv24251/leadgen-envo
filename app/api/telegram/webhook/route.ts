@@ -1,13 +1,13 @@
 import { prospects, type ProspectStatus } from "@/lib/data";
 
 const COMMAND_STATUS: Record<string, ProspectStatus> = {
-  "/generate-leads": "DRAFTED",
+  "/generate_leads": "DRAFTED",
   "/responded": "RESPONDED",
   "/bounced": "BOUNCED",
 };
 
 const HELP_TEXT = `Available commands:
-/generate-leads — prospects with drafted emails
+/generate_leads — prospects with drafted emails
 /responded — prospects who replied
 /bounced — prospects whose emails bounced`;
 

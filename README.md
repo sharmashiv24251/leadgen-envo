@@ -33,7 +33,9 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 
 Webhook lives at `app/api/telegram/webhook/route.ts`. It reads `TG_BOT_TOKEN` and `APP_URL` from the environment — set both in Vercel's project env vars (never commit them).
 
-Commands: `/generate-leads`, `/responded`, `/bounced`, `/help`. No login step; every command reads `lib/data.ts` directly.
+Commands: `/generate_leads`, `/responded`, `/bounced`, `/help`. No login step; every command reads `lib/data.ts` directly.
+
+> Telegram command names only allow `a-z0-9_` — no hyphens. A hyphenated name (e.g. `/generate-leads`) gets split by Telegram's client into a command entity plus trailing plain text, so tapping the highlighted part sends a broken command.
 
 After deploying, register the webhook once (replace the token and set `APP_URL` to your deployed domain):
 
@@ -41,6 +43,19 @@ After deploying, register the webhook once (replace the token and set `APP_URL` 
 curl -X POST "https://api.telegram.org/bot$TG_BOT_TOKEN/setWebhook" \
   -H "Content-Type: application/json" \
   -d '{"url": "'"$APP_URL"'/api/telegram/webhook"}'
+```
+
+Also register the command list so Telegram shows a `/` menu with descriptions instead of making users type blind:
+
+```bash
+curl -X POST "https://api.telegram.org/bot$TG_BOT_TOKEN/setMyCommands" \
+  -H "Content-Type: application/json" \
+  -d '{"commands": [
+    {"command": "generate_leads", "description": "Prospects with drafted emails"},
+    {"command": "responded", "description": "Prospects who replied"},
+    {"command": "bounced", "description": "Prospects whose emails bounced"},
+    {"command": "help", "description": "List available commands"}
+  ]}'
 ```
 
 ## Deploy on Vercel

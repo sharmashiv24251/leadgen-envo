@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import Chip from "@/components/Chip";
 import CopyBadge from "@/components/CopyBadge";
 import { PhoneIcon } from "@/components/icons";
@@ -23,15 +24,31 @@ function toTelHref(phone: string): string {
   return `tel:${phone.replace(/[^\d+]/g, "")}`;
 }
 
-export default function EmailDetail({ prospect }: { prospect: Prospect }) {
+export default function EmailDetail({
+  prospect,
+  status,
+}: {
+  prospect: Prospect;
+  status?: string;
+}) {
   function handleSend() {
     const url = buildGmailComposeUrl(prospect);
     window.open(url, "_blank", "noopener,noreferrer");
   }
 
+  const backHref = status ? `/emails?status=${status}` : "/emails";
+
   return (
     <section className="min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-8 sm:px-8">
+        <Link
+          href={backHref}
+          className="inline-flex w-fit items-center gap-1.5 font-mono text-xs uppercase tracking-wider text-ink-muted transition-colors hover:text-ink lg:hidden"
+        >
+          <span aria-hidden>←</span>
+          Back to list
+        </Link>
+
         <div className="rounded-[4px] border border-border bg-surface p-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>

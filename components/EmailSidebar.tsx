@@ -98,7 +98,7 @@ function EmailSidebarContent() {
   const queryString = activeStatus ? `?status=${activeStatus.toLowerCase()}` : "";
 
   return (
-    <aside className="flex max-h-64 shrink-0 flex-col border-b border-border overflow-y-auto lg:h-auto lg:max-h-none lg:w-96 lg:border-b-0 lg:border-r">
+    <aside className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:flex-none lg:w-96 lg:border-r lg:border-border">
       <div className="sticky top-0 flex items-center gap-2 border-b border-border bg-surface px-4 py-3 font-mono text-[11px] uppercase tracking-wider text-ink-muted">
         Prospects
         <span className="rounded-[3px] border border-border px-1.5 py-0.5 text-ink-faint">
@@ -178,7 +178,7 @@ function EmailSidebarContent() {
 
 export default function EmailSidebar() {
   return (
-    <Suspense fallback={<aside className="max-h-64 shrink-0 border-b border-border lg:h-auto lg:max-h-none lg:w-96 lg:border-b-0 lg:border-r" />}>
+    <Suspense fallback={<aside className="min-h-0 flex-1 lg:flex-none lg:w-96 lg:border-r lg:border-border" />}>
       <EmailSidebarContent />
     </Suspense>
   );

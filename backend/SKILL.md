@@ -47,17 +47,18 @@ curl -s "$SUPABASE_FN_URL/wk-find-email" \
 Select `count` candidates with verified emails. If you run short, pull from spares or do one more discovery pass (max 2 extra passes), then proceed with what you have.
 
 ## Phase 3 — deep research (the quality that makes this not-slop)
-For each selected prospect, research thoroughly:
+Delegate each prospect's research to its own subagent: for every selected prospect, spawn one dedicated `Task` tool invocation to do that prospect's research alone, one at a time (not all in parallel). This keeps each prospect's search noise contained in its own context instead of piling into yours across a multi-prospect run — you stay clean to draft and write each one after its subagent reports back.
+
+Each subagent researches thoroughly and returns a structured dossier:
 - **The person:** role, tenure, what they own, background.
 - **The company + why now:** the hook, plus the real situation — hiring, scaling, new office, first People hire, headcount jump.
 - **The people-risk angle:** which thing on Workenvo's KEEP list is plausibly true for them right now. Never imply Workenvo fixes anything on the DISCIPLINE list.
+- A **ledger** of every factual claim it found, each tagged:
+  - **VERIFIED** — found stated at a real source (give the URL).
+  - **INFERRED** — reasonable from evidence, but not stated. A job posting proves hiring, not headcount. Aggregator numbers are INFERRED. Stacked inferences stay INFERRED.
+  - **UNKNOWN** — do not put in the email.
 
-Keep a ledger as you go. Every factual claim you will put in the email must be one of:
-- **VERIFIED** — you found it stated at a real source (give the URL).
-- **INFERRED** — reasonable from evidence, but not stated. A job posting proves hiring, not headcount. Aggregator numbers are INFERRED. Stacked inferences stay INFERRED.
-- **UNKNOWN** — do not put it in the email.
-
-Only VERIFIED facts go in the email as stated facts. This is non-negotiable — it is the difference between "did their homework" and "made something up."
+Only VERIFIED facts go in the email as stated facts. This is non-negotiable — it is the difference between "did their homework" and "made something up." Use the subagent's returned dossier for Phases 4–5; don't re-research what it already covered.
 
 ## Phase 4 — write the email
 Follow `voice.md` exactly. Four moves, 60–100 words, no em dashes, British spelling, founder-to-founder, no banned phrases. Pick buyer vs champion ask from your Phase 3 read. Produce three subject options.

@@ -8,6 +8,7 @@ import { attachLiveLogger } from "./streamLogger.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WORKSPACE_DIR = path.join(__dirname, "..", "workspace");
 const RUN_TIMEOUT_MS = 25 * 60 * 1000;
+export const MAX_PROSPECTS_PER_RUN = 3;
 
 async function apolloBlocked(clientId) {
   const { data } = await supabase
@@ -25,9 +26,45 @@ async function writeNotification(clientId, notification) {
   await supabase.from("notifications").insert({ client_id: clientId, ...notification });
 }
 
+// Tracks the in-flight run so a SIGINT/SIGTERM can kill the child and record
+// the interruption instead of leaving the `runs` row stuck at status='running'.
+let activeRun = null;
+
+async function handleShutdownSignal(signal) {
+  console.error(`\n[runOnce] ${signal} received — stopping current run; any queued batches will not continue.`);
+  if (activeRun && !activeRun.settled) {
+    activeRun.settled = true;
+    activeRun.child?.kill("SIGKILL");
+    try {
+      await supabase
+        .from("runs")
+        .update({ status: "failed", error: `interrupted by user (${signal})`, finished_at: new Date().toISOString() })
+        .eq("id", activeRun.runId);
+      await writeNotification(activeRun.clientId, {
+        level: "warning",
+        source: "run",
+        title: "Run interrupted",
+        detail: `Run ${activeRun.runId} was stopped by ${signal} before it finished.`,
+      });
+      console.error(`[runOnce] run ${activeRun.runId} marked failed (interrupted)`);
+    } catch (err) {
+      console.error("[runOnce] failed to record interruption:", err);
+    }
+  }
+  process.exit(130);
+}
+
+process.on("SIGINT", () => handleShutdownSignal("SIGINT"));
+process.on("SIGTERM", () => handleShutdownSignal("SIGTERM"));
+
 export async function runOnce({ count = 1 } = {}) {
   const clientSlug = process.env.CLIENT_SLUG || "workenvo";
   const clientId = await getClientId(clientSlug);
+
+  const safeCount = Math.min(count, MAX_PROSPECTS_PER_RUN);
+  if (safeCount < count) {
+    console.warn(`[runOnce] requested count ${count} exceeds per-run cap ${MAX_PROSPECTS_PER_RUN}, clamping to ${safeCount}`);
+  }
 
   if (await apolloBlocked(clientId)) {
     console.log("[runOnce] skipped — apollo blocked");
@@ -49,6 +86,7 @@ export async function runOnce({ count = 1 } = {}) {
   if (runErr) throw runErr;
   const runId = run.id;
   console.log(`[runOnce] run ${runId} started`);
+  activeRun = { runId, clientId, child: null, settled: false };
 
   await downloadSkillFiles(WORKSPACE_DIR);
 
@@ -56,7 +94,7 @@ export async function runOnce({ count = 1 } = {}) {
     const child = spawn(
       "claude",
       [
-        "-p", `/start-outreach-workenvo ${count}`,
+        "-p", `/start-outreach-workenvo ${safeCount}`,
         "--dangerously-skip-permissions",
         "--verbose",
         "--output-format", "stream-json",
@@ -74,6 +112,7 @@ export async function runOnce({ count = 1 } = {}) {
       }
     );
 
+    activeRun.child = child;
     attachLiveLogger(child, { label: `run:${runId.slice(0, 8)}` });
 
     const timeout = setTimeout(() => {
@@ -90,6 +129,13 @@ export async function runOnce({ count = 1 } = {}) {
       resolve(code);
     });
   });
+
+  if (activeRun?.settled) {
+    // SIGINT/SIGTERM handler already recorded this run's outcome.
+    activeRun = null;
+    return;
+  }
+  activeRun = null;
 
   const { data: after } = await supabase.from("runs").select("status").eq("id", runId).single();
   if (after?.status === "running") {
@@ -108,5 +154,19 @@ export async function runOnce({ count = 1 } = {}) {
     console.error(`[runOnce] run ${runId} marked ${failStatus}`);
   } else {
     console.log(`[runOnce] run ${runId} finished with status ${after?.status}`);
+  }
+}
+
+// Splits a large request into sequential runs of at most MAX_PROSPECTS_PER_RUN each,
+// so no single agent invocation researches more than that many prospects at once.
+export async function runBatch(totalCount) {
+  let remaining = totalCount;
+  let batchNum = 1;
+  while (remaining > 0) {
+    const chunk = Math.min(remaining, MAX_PROSPECTS_PER_RUN);
+    console.log(`[runBatch] batch ${batchNum}: requesting ${chunk} (${remaining} remaining before this batch)`);
+    await runOnce({ count: chunk });
+    remaining -= chunk;
+    batchNum += 1;
   }
 }

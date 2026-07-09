@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { getAccount, isAuthenticated, revokeAccess, type Account } from "@/lib/auth";
 
 function formatClock(date: Date) {
   return date.toLocaleTimeString("en-US", { hour12: false });
@@ -10,7 +11,9 @@ function formatClock(date: Date) {
 
 export default function TopBar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [time, setTime] = useState<string | null>(null);
+  const [account, setAccount] = useState<Account | null>(null);
 
   useEffect(() => {
     setTime(formatClock(new Date()));
@@ -18,7 +21,18 @@ export default function TopBar() {
     return () => clearInterval(id);
   }, []);
 
+  useEffect(() => {
+    setAccount(isAuthenticated() ? getAccount() : null);
+  }, [pathname]);
+
+  function handleSignOut() {
+    revokeAccess();
+    router.push("/login");
+  }
+
+  const brandName = account === "workenvo" ? "Workenvo" : "thehrcompany";
   const showBackLink = pathname?.startsWith("/emails");
+  const showSignOut = account !== null && pathname !== "/login";
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border bg-surface px-4 sm:px-6">
@@ -46,7 +60,7 @@ export default function TopBar() {
             aria-hidden
           />
           <span className="truncate font-medium tracking-tight text-ink">
-            thehrcompany
+            {brandName}
           </span>
         </span>
       </div>
@@ -65,6 +79,15 @@ export default function TopBar() {
           </span>
           <span className="hidden text-accent sm:inline">Live</span>
         </span>
+        {showSignOut && (
+          <button
+            type="button"
+            onClick={handleSignOut}
+            className="rounded-full border border-border px-2.5 py-1 text-xs font-medium text-ink-muted transition-colors hover:border-border-strong hover:text-ink"
+          >
+            Sign out
+          </button>
+        )}
       </div>
     </header>
   );

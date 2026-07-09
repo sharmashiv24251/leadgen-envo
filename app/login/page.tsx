@@ -2,12 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
-import {
-  VALID_ACCESS_KEY,
-  VALID_OPERATOR_ID,
-  grantAccess,
-  isAuthenticated,
-} from "@/lib/auth";
+import { checkCredentials, grantAccess, isAuthenticated } from "@/lib/auth";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -24,8 +19,9 @@ export default function LoginPage() {
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
-    if (operatorId === VALID_OPERATOR_ID && accessKey === VALID_ACCESS_KEY) {
-      grantAccess();
+    const account = checkCredentials(operatorId, accessKey);
+    if (account) {
+      grantAccess(account);
       router.push("/");
       return;
     }
@@ -49,7 +45,7 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium uppercase tracking-wide text-ink-muted">
-              Operator ID
+              Email
             </span>
             <input
               type="text"
@@ -60,13 +56,13 @@ export default function LoginPage() {
                 setDenied(false);
               }}
               className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-ink outline-none placeholder:text-ink-faint focus:border-border-strong"
-              placeholder="operator id"
+              placeholder="email"
             />
           </label>
 
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium uppercase tracking-wide text-ink-muted">
-              Access Key
+              Password
             </span>
             <input
               type="password"
@@ -77,13 +73,13 @@ export default function LoginPage() {
                 setDenied(false);
               }}
               className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-ink outline-none placeholder:text-ink-faint focus:border-border-strong"
-              placeholder="access key"
+              placeholder="password"
             />
           </label>
 
           {denied && (
             <p className="rounded-lg border border-danger/30 bg-danger-dim px-3 py-2 text-xs font-medium text-danger">
-              Access denied — check operator id and access key
+              Access denied — check email and password
             </p>
           )}
 

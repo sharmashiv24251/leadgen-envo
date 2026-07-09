@@ -492,15 +492,20 @@ Niall`,
 const sentStatuses: ProspectStatus[] = ["SENT", "DELIVERED", "BOUNCED", "RESPONDED"];
 const deliveredStatuses: ProspectStatus[] = ["SENT", "DELIVERED", "RESPONDED"];
 
-const sentCount = prospects.filter((p) => sentStatuses.includes(p.status)).length;
-const deliveredCount = prospects.filter((p) => deliveredStatuses.includes(p.status)).length;
-const bouncedCount = prospects.filter((p) => p.status === "BOUNCED").length;
-const respondedCount = prospects.filter((p) => p.status === "RESPONDED").length;
+/** Pure aggregation so real (Supabase-backed) prospect lists can reuse the same math. */
+export function computeDashboardStats(list: Prospect[]): DashboardStats {
+  const sentCount = list.filter((p) => sentStatuses.includes(p.status)).length;
+  const deliveredCount = list.filter((p) => deliveredStatuses.includes(p.status)).length;
+  const bouncedCount = list.filter((p) => p.status === "BOUNCED").length;
+  const respondedCount = list.filter((p) => p.status === "RESPONDED").length;
+
+  return {
+    emailsDelivered: deliveredCount,
+    bounceRatePct: sentCount ? (bouncedCount / sentCount) * 100 : 0,
+    replyRatePct: sentCount ? (respondedCount / sentCount) * 100 : 0,
+    totalDrafted: list.length,
+  };
+}
 
 /** Derived straight from `prospects` — no hand-typed campaign numbers. */
-export const dashboardStats: DashboardStats = {
-  emailsDelivered: deliveredCount,
-  bounceRatePct: sentCount ? (bouncedCount / sentCount) * 100 : 0,
-  replyRatePct: sentCount ? (respondedCount / sentCount) * 100 : 0,
-  totalDrafted: prospects.length,
-};
+export const dashboardStats: DashboardStats = computeDashboardStats(prospects);

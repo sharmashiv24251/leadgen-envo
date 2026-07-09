@@ -1,6 +1,9 @@
+"use client";
+
 import Link from "next/link";
 import AgentsBanner from "@/components/AgentsBanner";
-import { activityFeed, dashboardStats, type ActivityTone } from "@/lib/data";
+import { type ActivityTone } from "@/lib/data";
+import { useDashboardData } from "@/lib/useAccountData";
 
 const toneDotClasses: Record<ActivityTone, string> = {
   success: "bg-accent",
@@ -49,6 +52,8 @@ function StatPanel({
 }
 
 export default function DashboardView() {
+  const { stats: dashboardStats, activity: activityFeed, loading } = useDashboardData();
+
   return (
     <div className="mx-auto w-full max-w-5xl flex-1 px-6 py-10 sm:px-10">
       <AgentsBanner />
@@ -59,6 +64,12 @@ export default function DashboardView() {
           Live outreach performance across the current campaign.
         </p>
       </div>
+
+      {loading && (
+        <p className="mb-6 animate-pulse text-xs font-medium uppercase tracking-wide text-ink-muted">
+          loading Workenvo data…
+        </p>
+      )}
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4">
         <StatPanel
@@ -92,6 +103,9 @@ export default function DashboardView() {
           Recent Activity
         </h2>
         <div className="overflow-hidden rounded-xl border border-border bg-surface shadow-[var(--shadow-panel-sm)]">
+          {activityFeed.length === 0 && !loading && (
+            <p className="px-4 py-3 text-xs text-ink-faint">No activity yet</p>
+          )}
           {activityFeed.map((event, i) => (
             <Link
               key={event.id}

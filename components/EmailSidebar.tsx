@@ -4,13 +4,9 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import Chip from "@/components/Chip";
-import {
-  prospects,
-  dateGroupLabel,
-  type Prospect,
-  type ProspectStatus,
-} from "@/lib/data";
+import { dateGroupLabel, type Prospect, type ProspectStatus } from "@/lib/data";
 import { statusTone } from "@/lib/status";
+import { useProspects } from "@/lib/useAccountData";
 
 const STATUS_FILTERS: { value: ProspectStatus; label: string }[] = [
   { value: "DRAFTED", label: "Drafted" },
@@ -78,6 +74,7 @@ function EmailSidebarContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const activeStatus = parseStatusFilter(searchParams.get("status"));
+  const { prospects, loading } = useProspects();
 
   const filteredProspects = activeStatus
     ? prospects.filter((p) => p.status === activeStatus)
@@ -108,7 +105,13 @@ function EmailSidebarContent() {
 
       <StatusFilterBar activeStatus={activeStatus} />
 
-      {groups.map(([daysAgo, group]) => {
+      {loading && (
+        <p className="animate-pulse px-4 py-3 text-xs font-medium uppercase tracking-wide text-ink-muted">
+          loading Workenvo data…
+        </p>
+      )}
+
+      {!loading && groups.map(([daysAgo, group]) => {
         const isCollapsed = collapsed.has(daysAgo);
         return (
           <div key={daysAgo} className="border-b border-border">

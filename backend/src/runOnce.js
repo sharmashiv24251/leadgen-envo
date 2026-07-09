@@ -10,6 +10,15 @@ const WORKSPACE_DIR = path.join(__dirname, "..", "workspace");
 const RUN_TIMEOUT_MS = 25 * 60 * 1000;
 export const MAX_PROSPECTS_PER_RUN = 3;
 
+// Retry tuning for runBatch() when a chunk comes back blocked_claude.
+const DEFAULT_RETRY_DELAY_MS = 5 * 60 * 1000; // used when we never saw a rate_limit_event to time off
+const RETRY_BUFFER_MS = 2 * 60 * 1000; // pad past resetsAt since limits can be approximate
+const MAX_RETRIES_PER_BATCH = 6; // safety cap so a non-rate-limit bug can't loop forever
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function apolloBlocked(clientId) {
   const { data } = await supabase
     .from("notifications")
@@ -91,7 +100,7 @@ export async function runOnce({ count = 1 } = {}) {
       detail: "An undismissed Apollo error notification exists.",
       action_hint: "Top up Apollo or rotate the key, then dismiss the notification to resume runs.",
     });
-    return;
+    return { status: "skipped_apollo_blocked", resetsAt: null };
   }
 
   const { data: run, error: runErr } = await supabase
@@ -105,6 +114,11 @@ export async function runOnce({ count = 1 } = {}) {
   activeRun = { runId, clientId, child: null, settled: false };
 
   await downloadSkillFiles(WORKSPACE_DIR);
+
+  // Rate-limit telemetry fires on every request regardless of whether it actually
+  // blocked anything — we just track the furthest-out resetsAt seen as our best guess
+  // for when to retry if this run does end up blocked_claude.
+  let lastRateLimitResetsAtMs = null;
 
   const exitCode = await new Promise((resolve, reject) => {
     const child = spawn(
@@ -129,7 +143,14 @@ export async function runOnce({ count = 1 } = {}) {
     );
 
     activeRun.child = child;
-    attachLiveLogger(child, { label: `run:${runId.slice(0, 8)}` });
+    attachLiveLogger(child, {
+      label: `run:${runId.slice(0, 8)}`,
+      onRateLimit: (info) => {
+        if (!info?.resetsAt) return;
+        const ms = info.resetsAt * 1000;
+        if (!lastRateLimitResetsAtMs || ms > lastRateLimitResetsAtMs) lastRateLimitResetsAtMs = ms;
+      },
+    });
 
     const timeout = setTimeout(() => {
       console.error(`[runOnce] run ${runId} exceeded ${RUN_TIMEOUT_MS / 60000}m timeout, killing`);
@@ -149,12 +170,13 @@ export async function runOnce({ count = 1 } = {}) {
   if (activeRun?.settled) {
     // SIGINT/SIGTERM handler already recorded this run's outcome.
     activeRun = null;
-    return;
+    return { status: "failed", resetsAt: null };
   }
   activeRun = null;
 
   const { data: after } = await supabase.from("runs").select("status").eq("id", runId).single();
-  if (after?.status === "running") {
+  let finalStatus = after?.status;
+  if (finalStatus === "running") {
     const failStatus = exitCode === 0 ? "failed" : "blocked_claude";
     await supabase
       .from("runs")
@@ -168,21 +190,50 @@ export async function runOnce({ count = 1 } = {}) {
       action_hint: "Check Claude Code auth/rate limits, then retry.",
     });
     console.error(`[runOnce] run ${runId} marked ${failStatus}`);
+    finalStatus = failStatus;
   } else {
-    console.log(`[runOnce] run ${runId} finished with status ${after?.status}`);
+    console.log(`[runOnce] run ${runId} finished with status ${finalStatus}`);
   }
+
+  return { status: finalStatus, resetsAt: lastRateLimitResetsAtMs };
 }
 
 // Splits a large request into sequential runs of at most MAX_PROSPECTS_PER_RUN each,
 // so no single agent invocation researches more than that many prospects at once.
+// If a chunk comes back blocked_claude (rate limit / auth / crash), it's retried in
+// place — not skipped — waiting until the observed rate-limit reset time if we saw
+// one, else a fixed default, up to MAX_RETRIES_PER_BATCH before giving up entirely.
 export async function runBatch(totalCount) {
   let remaining = totalCount;
   let batchNum = 1;
+  let retries = 0;
+
   while (remaining > 0) {
     const chunk = Math.min(remaining, MAX_PROSPECTS_PER_RUN);
     console.log(`[runBatch] batch ${batchNum}: requesting ${chunk} (${remaining} remaining before this batch)`);
-    await runOnce({ count: chunk });
+    const result = await runOnce({ count: chunk });
+
+    if (result?.status === "skipped_apollo_blocked") {
+      console.log(`[runBatch] stopping — Apollo is blocked; ${remaining} prospect(s) left undone for today`);
+      return;
+    }
+
+    if (result?.status === "blocked_claude") {
+      retries += 1;
+      if (retries > MAX_RETRIES_PER_BATCH) {
+        console.error(`[runBatch] giving up after ${MAX_RETRIES_PER_BATCH} retries — ${remaining} prospect(s) left undone for today`);
+        return;
+      }
+      const waitMs = result.resetsAt
+        ? Math.max(result.resetsAt - Date.now() + RETRY_BUFFER_MS, 30_000)
+        : DEFAULT_RETRY_DELAY_MS;
+      console.log(`[runBatch] Claude blocked (attempt ${retries}/${MAX_RETRIES_PER_BATCH}) — waiting ${Math.round(waitMs / 60000)}m before retrying this batch of ${chunk}`);
+      await sleep(waitMs);
+      continue; // retry the same chunk — don't decrement remaining
+    }
+
     remaining -= chunk;
     batchNum += 1;
+    retries = 0; // reset after a batch that actually completed
   }
 }

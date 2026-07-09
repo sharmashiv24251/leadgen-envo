@@ -24,7 +24,9 @@ function summarizeResult(content) {
 }
 
 // Parses claude -p --output-format stream-json NDJSON lines into readable log lines.
-export function attachLiveLogger(child, { label = "agent" } = {}) {
+// onRateLimit(info), if given, fires for every rate_limit_event seen (these are routine
+// per-request telemetry, not necessarily an actual block — callers decide what to do with it).
+export function attachLiveLogger(child, { label = "agent", onRateLimit } = {}) {
   const toolNames = new Map();
   const rl = readline.createInterface({ input: child.stdout });
 
@@ -38,7 +40,11 @@ export function attachLiveLogger(child, { label = "agent" } = {}) {
       return;
     }
 
-    if (evt.type === "system" && evt.subtype === "init") {
+    if (evt.type === "rate_limit_event") {
+      const info = evt.rate_limit_info;
+      console.log(`[${label}] rate limit: ${info?.rateLimitType} at ${Math.round((info?.utilization ?? 0) * 100)}% (status=${info?.status})`);
+      onRateLimit?.(info);
+    } else if (evt.type === "system" && evt.subtype === "init") {
       console.log(`[${label}] session started (model=${evt.model})`);
     } else if (evt.type === "assistant") {
       for (const block of evt.message?.content ?? []) {

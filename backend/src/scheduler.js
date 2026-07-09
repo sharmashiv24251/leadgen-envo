@@ -1,6 +1,6 @@
 import cron from "node-cron";
 import { supabase, getClientId } from "./supabaseClient.js";
-import { runOnce } from "./runOnce.js";
+import { runBatch } from "./runOnce.js";
 
 const CLIENT_SLUG = process.env.CLIENT_SLUG || "workenvo";
 const TZ = process.env.TZ || "Europe/Dublin";
@@ -11,35 +11,10 @@ async function readConfig(clientId) {
   return Object.fromEntries(data.map((row) => [row.key, row.value]));
 }
 
-function hhmmToMinutes(hhmm) {
-  const [h, m] = hhmm.split(":").map(Number);
-  return h * 60 + m;
-}
-
-function msUntilMinuteOfDay(minuteOfDay) {
-  const now = new Date();
-  const target = new Date(now);
-  target.setHours(Math.floor(minuteOfDay / 60), minuteOfDay % 60, 0, 0);
-  let diff = target.getTime() - now.getTime();
-  if (diff < 0) diff += 24 * 60 * 60 * 1000;
-  return diff;
-}
-
-// Spreads `quota` runs evenly across the send window, each with 0-25min jitter.
-function planTimes(quota, sendWindow) {
-  const start = hhmmToMinutes(sendWindow.start);
-  const end = hhmmToMinutes(sendWindow.end);
-  const span = end - start;
-  const times = [];
-  for (let i = 0; i < quota; i++) {
-    const slot = start + Math.floor((span * (i + 0.5)) / quota);
-    const jitter = Math.floor(Math.random() * 25);
-    times.push(slot + jitter);
-  }
-  return times;
-}
-
-async function planToday() {
+// Runs the whole day's quota as a batch queue (chunks of <= MAX_PROSPECTS_PER_RUN,
+// retrying in place on blocked_claude) rather than spreading single-prospect runs
+// across send_window — see runOnce.js's runBatch for the retry/backoff logic.
+async function runToday() {
   const clientId = await getClientId(CLIENT_SLUG);
   const cfg = await readConfig(clientId);
 
@@ -48,19 +23,13 @@ async function planToday() {
     return;
   }
 
-  const times = planTimes(cfg.daily_quota, cfg.send_window);
-  console.log(`[scheduler] planning ${times.length} run(s) today within ${cfg.send_window.start}-${cfg.send_window.end} ${TZ}`);
-
-  for (const minuteOfDay of times) {
-    const delay = msUntilMinuteOfDay(minuteOfDay);
-    setTimeout(() => {
-      runOnce().catch((err) => console.error("[scheduler] runOnce failed:", err));
-    }, delay);
-  }
+  console.log(`[scheduler] starting today's batch queue — daily_quota=${cfg.daily_quota}`);
+  await runBatch(cfg.daily_quota);
+  console.log("[scheduler] today's batch queue finished (or stopped early — see runBatch logs above)");
 }
 
 cron.schedule("0 7 * * *", () => {
-  planToday().catch((err) => console.error("[scheduler] planToday failed:", err));
+  runToday().catch((err) => console.error("[scheduler] runToday failed:", err));
 }, { timezone: TZ });
 
-console.log(`[scheduler] started — will plan runs daily at 07:00 ${TZ}`);
+console.log(`[scheduler] started — will run the day's batch queue daily at 07:00 ${TZ}`);

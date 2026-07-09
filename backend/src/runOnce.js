@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import { supabase, getClientId } from "./supabaseClient.js";
 import { downloadSkillFiles } from "./downloadSkillFiles.js";
+import { attachLiveLogger } from "./streamLogger.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WORKSPACE_DIR = path.join(__dirname, "..", "workspace");
@@ -54,7 +55,12 @@ export async function runOnce({ count = 1 } = {}) {
   const exitCode = await new Promise((resolve, reject) => {
     const child = spawn(
       "claude",
-      ["-p", `/start-outreach-workenvo ${count}`, "--dangerously-skip-permissions", "--verbose"],
+      [
+        "-p", `/start-outreach-workenvo ${count}`,
+        "--dangerously-skip-permissions",
+        "--verbose",
+        "--output-format", "stream-json",
+      ],
       {
         cwd: WORKSPACE_DIR,
         env: {
@@ -64,9 +70,11 @@ export async function runOnce({ count = 1 } = {}) {
           RUN_ID: runId,
           CLIENT_SLUG: clientSlug,
         },
-        stdio: "inherit",
+        stdio: ["ignore", "pipe", "pipe"],
       }
     );
+
+    attachLiveLogger(child, { label: `run:${runId.slice(0, 8)}` });
 
     const timeout = setTimeout(() => {
       console.error(`[runOnce] run ${runId} exceeded ${RUN_TIMEOUT_MS / 60000}m timeout, killing`);

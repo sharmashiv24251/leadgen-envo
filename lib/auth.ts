@@ -6,8 +6,8 @@ export type Account = "mock" | "workenvo";
 export const VALID_OPERATOR_ID = "thehrcompany";
 export const VALID_ACCESS_KEY = "thehrcompany";
 
-export const WORKENVO_EMAIL = "saransh@workenvo.com";
-export const WORKENVO_PASSWORD = "$aransh@workenvo.com";
+export const WORKENVO_EMAIL = "workenvo";
+export const WORKENVO_PASSWORD = "workenvo";
 
 /** Returns which account the given credentials belong to, or null if invalid. */
 export function checkCredentials(id: string, secret: string): Account | null {

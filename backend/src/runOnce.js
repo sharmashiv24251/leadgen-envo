@@ -29,33 +29,49 @@ async function writeNotification(clientId, notification) {
 // Tracks the in-flight run so a SIGINT/SIGTERM can kill the child and record
 // the interruption instead of leaving the `runs` row stuck at status='running'.
 let activeRun = null;
+let shuttingDown = false;
 
-async function handleShutdownSignal(signal) {
-  console.error(`\n[runOnce] ${signal} received — stopping current run; any queued batches will not continue.`);
-  if (activeRun && !activeRun.settled) {
-    activeRun.settled = true;
-    activeRun.child?.kill("SIGKILL");
-    try {
-      await supabase
-        .from("runs")
-        .update({ status: "failed", error: `interrupted by user (${signal})`, finished_at: new Date().toISOString() })
-        .eq("id", activeRun.runId);
-      await writeNotification(activeRun.clientId, {
-        level: "warning",
-        source: "run",
-        title: "Run interrupted",
-        detail: `Run ${activeRun.runId} was stopped by ${signal} before it finished.`,
-      });
-      console.error(`[runOnce] run ${activeRun.runId} marked failed (interrupted)`);
-    } catch (err) {
-      console.error("[runOnce] failed to record interruption:", err);
-    }
+function handleShutdownSignal(signal) {
+  if (shuttingDown) {
+    // A repeat signal (e.g. a second Ctrl+C) — ignore it and let the first
+    // invocation's in-flight DB write finish instead of racing it to exit.
+    console.error(`[runOnce] ${signal} received again — already shutting down, waiting for the DB write to finish...`);
+    return;
   }
-  process.exit(130);
+  shuttingDown = true;
+  console.error(`\n[runOnce] ${signal} received — stopping current run; any queued batches will not continue.`);
+
+  // Hard fallback: don't hang forever if the DB write itself stalls (network issue etc).
+  const forceExitTimer = setTimeout(() => process.exit(130), 5000);
+
+  (async () => {
+    if (activeRun && !activeRun.settled) {
+      activeRun.settled = true;
+      activeRun.child?.kill("SIGKILL");
+      try {
+        await supabase
+          .from("runs")
+          .update({ status: "failed", error: `interrupted by user (${signal})`, finished_at: new Date().toISOString() })
+          .eq("id", activeRun.runId);
+        await writeNotification(activeRun.clientId, {
+          level: "warning",
+          source: "run",
+          title: "Run interrupted",
+          detail: `Run ${activeRun.runId} was stopped by ${signal} before it finished.`,
+        });
+        console.error(`[runOnce] run ${activeRun.runId} marked failed (interrupted)`);
+      } catch (err) {
+        console.error("[runOnce] failed to record interruption:", err);
+      }
+    }
+    clearTimeout(forceExitTimer);
+    process.exit(130);
+  })();
 }
 
 process.on("SIGINT", () => handleShutdownSignal("SIGINT"));
 process.on("SIGTERM", () => handleShutdownSignal("SIGTERM"));
+process.on("SIGHUP", () => handleShutdownSignal("SIGHUP"));
 
 export async function runOnce({ count = 1 } = {}) {
   const clientSlug = process.env.CLIENT_SLUG || "workenvo";

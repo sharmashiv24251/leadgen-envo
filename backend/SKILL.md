@@ -49,7 +49,11 @@ Select `count` candidates with verified emails. If you run short, pull from spar
 ## Phase 3 — deep research (the quality that makes this not-slop)
 Delegate each prospect's research to its own subagent: for every selected prospect, spawn one dedicated `Task` tool invocation to do that prospect's research alone, one at a time (not all in parallel). This keeps each prospect's search noise contained in its own context instead of piling into yours across a multi-prospect run — you stay clean to draft and write each one after its subagent reports back.
 
-Each subagent researches thoroughly and returns a structured dossier:
+**That subagent must do the research itself — it must NOT use the Task/Agent tool to spawn further subagents.** One prospect = one subagent, full stop; it does not get to fan out into separate "background," "public statements," and "cross-verify" agents of its own. Say this explicitly in the prompt you give it. It already has WebSearch/WebFetch directly — if it wants to look at two angles at once, it issues two tool calls in the same turn, it does not delegate. Cross-verification means re-reading what it already found in its own context, not spinning up a dedicated verifier agent to redo the work secondhand.
+
+Give it a budget in the prompt: roughly 6-8 tool calls total. If a name is ambiguous (e.g. multiple people share it), resolve that once by matching company domain / LinkedIn URL against known facts, then move on — don't treat disambiguation as a reason to keep searching or to launch another pass.
+
+Each subagent researches thoroughly within that budget and returns a structured dossier:
 - **The person:** role, tenure, what they own, background.
 - **The company + why now:** the hook, plus the real situation — hiring, scaling, new office, first People hire, headcount jump.
 - **The people-risk angle:** which thing on Workenvo's KEEP list is plausibly true for them right now. Never imply Workenvo fixes anything on the DISCIPLINE list.

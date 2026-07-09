@@ -143,6 +143,7 @@ export async function runOnce({ count = 1 } = {}) {
       "claude",
       [
         "-p", `/start-outreach-workenvo ${safeCount}`,
+        "--model", "sonnet",
         "--dangerously-skip-permissions",
         "--verbose",
         "--output-format", "stream-json",

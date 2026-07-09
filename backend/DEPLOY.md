@@ -103,4 +103,5 @@ git pull
 npm install
 sudo systemctl restart workenvo-scheduler
 sudo systemctl status workenvo-scheduler
+sudo journalctl -u workenvo-scheduler -f
 ```

@@ -1,0 +1,15 @@
+{
+  "name": "workenvo-outreach-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/scheduler.js",
+    "manual-run": "node src/manualRun.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2",
+    "dotenv": "^16",
+    "node-cron": "^3"
+  }
+}

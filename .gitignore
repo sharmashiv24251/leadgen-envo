@@ -2,6 +2,8 @@
 
 # dependencies
 /node_modules
+backend/node_modules
+backend/workspace
 /.pnp
 .pnp.*
 .yarn/*
@@ -32,6 +34,9 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+
+# mcp config (contains access tokens)
+.mcp.json
 
 # vercel
 .vercel

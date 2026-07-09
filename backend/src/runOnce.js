@@ -31,6 +31,19 @@ async function apolloBlocked(clientId) {
   return !!data?.length;
 }
 
+// DB-level mutual exclusion: manual-run (SSH) and the scheduler's queue processor are
+// separate Node processes, so an in-memory flag alone can't stop them colliding. Any
+// existing 'running' row means another process is already mid-run.
+async function anotherRunInProgress(clientId) {
+  const { data } = await supabase
+    .from("runs")
+    .select("id")
+    .eq("client_id", clientId)
+    .eq("status", "running")
+    .limit(1);
+  return !!data?.length;
+}
+
 async function writeNotification(clientId, notification) {
   await supabase.from("notifications").insert({ client_id: clientId, ...notification });
 }
@@ -101,6 +114,11 @@ export async function runOnce({ count = 1 } = {}) {
       action_hint: "Top up Apollo or rotate the key, then dismiss the notification to resume runs.",
     });
     return { status: "skipped_apollo_blocked", resetsAt: null };
+  }
+
+  if (await anotherRunInProgress(clientId)) {
+    console.log("[runOnce] skipped — another run is already in progress");
+    return { status: "skipped_busy", resetsAt: null };
   }
 
   const { data: run, error: runErr } = await supabase
@@ -215,14 +233,19 @@ export async function runBatch(totalCount) {
 
     if (result?.status === "skipped_apollo_blocked") {
       console.log(`[runBatch] stopping — Apollo is blocked; ${remaining} prospect(s) left undone for today`);
-      return;
+      return { status: "stopped_apollo_blocked", remaining };
+    }
+
+    if (result?.status === "skipped_busy") {
+      console.log(`[runBatch] stopping — another run is already in progress; ${remaining} prospect(s) left undone this round`);
+      return { status: "stopped_busy", remaining };
     }
 
     if (result?.status === "blocked_claude") {
       retries += 1;
       if (retries > MAX_RETRIES_PER_BATCH) {
         console.error(`[runBatch] giving up after ${MAX_RETRIES_PER_BATCH} retries — ${remaining} prospect(s) left undone for today`);
-        return;
+        return { status: "gave_up", remaining };
       }
       const waitMs = result.resetsAt
         ? Math.max(result.resetsAt - Date.now() + RETRY_BUFFER_MS, 30_000)
@@ -236,4 +259,6 @@ export async function runBatch(totalCount) {
     batchNum += 1;
     retries = 0; // reset after a batch that actually completed
   }
+
+  return { status: "done", remaining: 0 };
 }

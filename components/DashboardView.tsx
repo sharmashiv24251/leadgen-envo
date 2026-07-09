@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import AgentsBanner from "@/components/AgentsBanner";
+import RunTrigger from "@/components/RunTrigger";
+import { getAccount, isAuthenticated } from "@/lib/auth";
 import { type ActivityTone } from "@/lib/data";
 import { useDashboardData } from "@/lib/useAccountData";
 
@@ -53,16 +56,24 @@ function StatPanel({
 
 export default function DashboardView() {
   const { stats: dashboardStats, activity: activityFeed, loading } = useDashboardData();
+  const [isWorkenvo, setIsWorkenvo] = useState(false);
+
+  useEffect(() => {
+    setIsWorkenvo(isAuthenticated() && getAccount() === "workenvo");
+  }, []);
 
   return (
     <div className="mx-auto w-full max-w-5xl flex-1 px-6 py-10 sm:px-10">
       <AgentsBanner />
 
-      <div className="mb-8">
-        <h1 className="text-lg font-semibold text-ink">Command Center</h1>
-        <p className="mt-1 text-sm text-ink-muted">
-          Live outreach performance across the current campaign.
-        </p>
+      <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-lg font-semibold text-ink">Command Center</h1>
+          <p className="mt-1 text-sm text-ink-muted">
+            Live outreach performance across the current campaign.
+          </p>
+        </div>
+        {isWorkenvo && <RunTrigger />}
       </div>
 
       {loading && (

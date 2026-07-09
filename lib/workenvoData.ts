@@ -141,3 +141,38 @@ export async function fetchWorkenvoData(): Promise<{
 
   return { prospects, stats, activity };
 }
+
+export type RunRequestStatus = "pending" | "running" | "done" | "failed";
+
+export type RunRequest = {
+  id: string;
+  requested_count: number;
+  status: RunRequestStatus;
+  error: string | null;
+  created_at: string;
+};
+
+// Enqueues a run — never talks to the VM directly (it has no inbound ports open).
+// The scheduler's poll loop picks this up from the table instead.
+export async function enqueueRun(count: number): Promise<void> {
+  const { error } = await supabaseBrowser
+    .from("run_requests")
+    .insert({ client_id: WORKENVO_CLIENT_ID, requested_count: count });
+  if (error) throw new Error(error.message);
+}
+
+export async function fetchLatestRunRequest(): Promise<RunRequest | null> {
+  const { data, error } = await supabaseBrowser
+    .from("run_requests")
+    .select("id, requested_count, status, error, created_at")
+    .eq("client_id", WORKENVO_CLIENT_ID)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[workenvoData] fetchLatestRunRequest failed:", error.message);
+    return null;
+  }
+  return data;
+}

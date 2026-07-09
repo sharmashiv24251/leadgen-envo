@@ -142,6 +142,20 @@ export async function fetchWorkenvoData(): Promise<{
   return { prospects, stats, activity };
 }
 
+// Prospect.id is the contact id (see mapRowToProspect above); `emails_one_per_contact`
+// guarantees exactly one email row per contact, so contact_id is a safe update key.
+export async function updateEmailDraft(
+  contactId: string,
+  updates: { subject: string; body: string }
+): Promise<void> {
+  const { error } = await supabaseBrowser
+    .from("emails")
+    .update(updates)
+    .eq("contact_id", contactId)
+    .eq("client_id", WORKENVO_CLIENT_ID);
+  if (error) throw new Error(error.message);
+}
+
 export type RunRequestStatus = "pending" | "running" | "done" | "failed";
 
 export type RunRequest = {

@@ -9,7 +9,7 @@ function EmailPageContent() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const status = searchParams.get("status") ?? undefined;
-  const { prospects, loading } = useProspects();
+  const { prospects, loading, refetch } = useProspects();
 
   const prospect = prospects.find((p) => p.id === params.id);
 
@@ -23,7 +23,7 @@ function EmailPageContent() {
     );
   }
 
-  return <EmailDetail prospect={prospect} status={status} />;
+  return <EmailDetail prospect={prospect} status={status} onSaved={refetch} />;
 }
 
 export default function EmailPage() {

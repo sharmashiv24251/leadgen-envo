@@ -18,11 +18,23 @@ import { fetchWorkenvoData } from "@/lib/workenvoData";
 // browser paints, so the mock frame never actually becomes visible — it's swapped
 // pre-paint, not after a visible flash.
 
-export function useProspects(): { prospects: Prospect[]; loading: boolean } {
+export function useProspects(): {
+  prospects: Prospect[];
+  loading: boolean;
+  refetch: () => void;
+} {
   const [state, setState] = useState<{ prospects: Prospect[]; loading: boolean }>({
     prospects: mockProspects,
     loading: false,
   });
+
+  function load() {
+    if (!isAuthenticated() || getAccount() !== "workenvo") return;
+    setState((prev) => ({ prospects: prev.prospects, loading: true }));
+    fetchWorkenvoData().then(({ prospects }) => {
+      setState({ prospects, loading: false });
+    });
+  }
 
   useLayoutEffect(() => {
     if (!isAuthenticated() || getAccount() !== "workenvo") return;
@@ -36,7 +48,7 @@ export function useProspects(): { prospects: Prospect[]; loading: boolean } {
     };
   }, []);
 
-  return state;
+  return { ...state, refetch: load };
 }
 
 export function useDashboardData(): {

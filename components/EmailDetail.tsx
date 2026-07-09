@@ -1,18 +1,21 @@
 "use client";
 
 import Link from "next/link";
+import { useLayoutEffect, useState } from "react";
 import Chip from "@/components/Chip";
 import CopyBadge from "@/components/CopyBadge";
 import { PhoneIcon } from "@/components/icons";
+import { getAccount } from "@/lib/auth";
 import type { Prospect } from "@/lib/data";
+import { updateEmailDraft } from "@/lib/workenvoData";
 
-function buildGmailComposeUrl(prospect: Prospect): string {
+function buildGmailComposeUrl(to: string, subject: string, body: string): string {
   const params = [
     ["view", "cm"],
     ["fs", "1"],
-    ["to", prospect.email],
-    ["su", prospect.subject],
-    ["body", prospect.body],
+    ["to", to],
+    ["su", subject],
+    ["body", body],
   ]
     .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
     .join("&");
@@ -27,13 +30,59 @@ function toTelHref(phone: string): string {
 export default function EmailDetail({
   prospect,
   status,
+  onSaved,
 }: {
   prospect: Prospect;
   status?: string;
+  onSaved?: () => void;
 }) {
+  const [canEdit, setCanEdit] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [subject, setSubject] = useState(prospect.subject);
+  const [body, setBody] = useState(prospect.body);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  useLayoutEffect(() => {
+    setCanEdit(getAccount() === "workenvo");
+  }, []);
+
+  useLayoutEffect(() => {
+    setSubject(prospect.subject);
+    setBody(prospect.body);
+    setIsEditing(false);
+    setSaveError(null);
+  }, [prospect.id, prospect.subject, prospect.body]);
+
   function handleSend() {
-    const url = buildGmailComposeUrl(prospect);
+    const url = buildGmailComposeUrl(prospect.email, subject, body);
     window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  function handleEditStart() {
+    setSaveError(null);
+    setIsEditing(true);
+  }
+
+  function handleCancel() {
+    setSubject(prospect.subject);
+    setBody(prospect.body);
+    setSaveError(null);
+    setIsEditing(false);
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await updateEmailDraft(prospect.id, { subject, body });
+      setIsEditing(false);
+      onSaved?.();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Failed to save.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   const backHref = status ? `/emails?status=${status}` : "/emails";
@@ -109,31 +158,87 @@ export default function EmailDetail({
               <h2 className="text-xs font-medium uppercase tracking-wide text-ink-muted">
                 Email Draft
               </h2>
-              <button
-                type="button"
-                onClick={handleSend}
-                className="shrink-0 rounded-lg bg-accent px-4 py-2 text-xs font-medium text-accent-ink transition-opacity hover:opacity-90"
-              >
-                Send via Gmail
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                {canEdit && !isEditing && (
+                  <button
+                    type="button"
+                    onClick={handleEditStart}
+                    className="rounded-lg border border-border px-4 py-2 text-xs font-medium text-ink-muted transition-colors hover:text-ink"
+                  >
+                    Edit
+                  </button>
+                )}
+                {isEditing && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleCancel}
+                      disabled={saving}
+                      className="rounded-lg border border-border px-4 py-2 text-xs font-medium text-ink-muted transition-colors hover:text-ink disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="rounded-lg bg-accent px-4 py-2 text-xs font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-50"
+                    >
+                      {saving ? "Saving…" : "Save"}
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={handleSend}
+                  disabled={isEditing}
+                  className="rounded-lg bg-accent px-4 py-2 text-xs font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-50"
+                >
+                  Send via Gmail
+                </button>
+              </div>
             </div>
+
+            {saveError && (
+              <p className="mb-4 rounded-lg border border-danger/30 bg-danger-dim px-3 py-2 text-xs text-danger">
+                {saveError}
+              </p>
+            )}
 
             <div className="mb-4">
               <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-ink-muted">
                 Subject
               </span>
-              <div className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-ink">
-                {prospect.subject}
-              </div>
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  className="w-full rounded-lg border border-accent/40 bg-bg px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+                />
+              ) : (
+                <div className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-ink">
+                  {subject}
+                </div>
+              )}
             </div>
 
             <div>
               <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-ink-muted">
                 Body
               </span>
-              <p className="max-w-[70ch] whitespace-pre-wrap text-sm leading-relaxed text-ink">
-                {prospect.body}
-              </p>
+              {isEditing ? (
+                <textarea
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                  rows={12}
+                  className="w-full max-w-[70ch] resize-y rounded-lg border border-accent/40 bg-bg px-3 py-2 text-sm leading-relaxed text-ink outline-none focus:border-accent"
+                />
+              ) : (
+                <p className="max-w-[70ch] whitespace-pre-wrap text-sm leading-relaxed text-ink">
+                  {body}
+                </p>
+              )}
             </div>
           </div>
         </div>

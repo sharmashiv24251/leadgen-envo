@@ -1,42 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { enqueueRun, fetchLatestRunRequest, type RunRequest } from "@/lib/workenvoData";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { queryKeys } from "@/lib/queryKeys";
+import { enqueueRun, fetchLatestRunRequest } from "@/lib/workenvoData";
 
 const POLL_MS = 5000;
 
 export default function RunTrigger() {
   const [open, setOpen] = useState(false);
   const [count, setCount] = useState(3);
-  const [submitting, setSubmitting] = useState(false);
-  const [latest, setLatest] = useState<RunRequest | null>(null);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    let cancelled = false;
-    async function poll() {
-      const r = await fetchLatestRunRequest();
-      if (!cancelled) setLatest(r);
-    }
-    poll();
-    const id = setInterval(poll, POLL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, []);
+  const { data: latest } = useQuery({
+    queryKey: queryKeys.workenvo.latestRunRequest(),
+    queryFn: fetchLatestRunRequest,
+    refetchInterval: POLL_MS,
+  });
 
-  async function handleStart() {
-    setSubmitting(true);
-    try {
-      await enqueueRun(count);
+  const enqueueMutation = useMutation<void, Error, number>({
+    mutationFn: enqueueRun,
+    onSuccess: () => {
       setOpen(false);
-      setLatest(await fetchLatestRunRequest());
-    } catch (err) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.workenvo.latestRunRequest() });
+    },
+    onError: (err) => {
       console.error("[RunTrigger] failed to enqueue:", err);
-    } finally {
-      setSubmitting(false);
-    }
-  }
+    },
+  });
 
   const isActive = latest?.status === "pending" || latest?.status === "running";
   const statusLabel = isActive
@@ -71,11 +62,11 @@ export default function RunTrigger() {
           />
           <button
             type="button"
-            onClick={handleStart}
-            disabled={submitting}
+            onClick={() => enqueueMutation.mutate(count)}
+            disabled={enqueueMutation.isPending}
             className="rounded-full bg-accent-strong px-3 py-1.5 text-xs font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-50 active:scale-[0.97]"
           >
-            {submitting ? "Starting…" : "Start"}
+            {enqueueMutation.isPending ? "Starting…" : "Start"}
           </button>
           <button
             type="button"

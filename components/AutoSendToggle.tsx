@@ -1,63 +1,69 @@
 "use client";
 
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "motion/react";
-import { useEffect, useState } from "react";
 import Tooltip from "@/components/Tooltip";
+import { queryKeys } from "@/lib/queryKeys";
 import {
   fetchAutoSend,
   fetchDefaultSender,
   fetchSenderOptions,
   setAutoSend,
   setDefaultSender,
-  type SenderOption,
 } from "@/lib/workenvoData";
 
 const KNOB_SPRING = { type: "spring", stiffness: 500, damping: 30 } as const;
 
 export default function AutoSendToggle() {
-  const [autoSend, setLocalAutoSend] = useState<boolean | null>(null);
-  const [saving, setSaving] = useState(false);
+  const queryClient = useQueryClient();
 
-  const [senderOptions, setSenderOptions] = useState<SenderOption[]>([]);
-  const [defaultSender, setLocalDefaultSender] = useState("");
-  const [savingSender, setSavingSender] = useState(false);
+  const { data: autoSend } = useQuery({
+    queryKey: queryKeys.workenvo.autoSend(),
+    queryFn: fetchAutoSend,
+  });
+  // Same query key EmailDetail uses for its sender dropdown — one fetch serves both.
+  const { data: senderOptions = [] } = useQuery({
+    queryKey: queryKeys.workenvo.senderOptions(),
+    queryFn: fetchSenderOptions,
+  });
+  const { data: defaultSender = "" } = useQuery({
+    queryKey: queryKeys.workenvo.defaultSender(),
+    queryFn: fetchDefaultSender,
+  });
 
-  useEffect(() => {
-    fetchAutoSend().then(setLocalAutoSend);
-    fetchSenderOptions().then(setSenderOptions);
-    fetchDefaultSender().then(setLocalDefaultSender);
-  }, []);
-
-  async function toggle() {
-    if (autoSend === null || saving) return;
-    const next = !autoSend;
-    setLocalAutoSend(next);
-    setSaving(true);
-    try {
-      await setAutoSend(next);
-    } catch (err) {
+  const toggleMutation = useMutation<void, Error, boolean, { previous?: boolean }>({
+    mutationFn: setAutoSend,
+    onMutate: (next) => {
+      const previous = queryClient.getQueryData<boolean>(queryKeys.workenvo.autoSend());
+      queryClient.setQueryData(queryKeys.workenvo.autoSend(), next);
+      return { previous };
+    },
+    onError: (err, _next, context) => {
       console.error("[AutoSendToggle] failed to save:", err);
-      setLocalAutoSend(autoSend);
-    } finally {
-      setSaving(false);
-    }
-  }
+      queryClient.setQueryData(queryKeys.workenvo.autoSend(), context?.previous ?? false);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.workenvo.autoSend() });
+    },
+  });
 
-  async function handleSenderChange(email: string) {
-    const prev = defaultSender;
-    setLocalDefaultSender(email);
-    setSavingSender(true);
-    try {
-      await setDefaultSender(email);
-    } catch (err) {
+  const senderMutation = useMutation<void, Error, string, { previous?: string }>({
+    mutationFn: setDefaultSender,
+    onMutate: (email) => {
+      const previous = queryClient.getQueryData<string>(queryKeys.workenvo.defaultSender());
+      queryClient.setQueryData(queryKeys.workenvo.defaultSender(), email);
+      return { previous };
+    },
+    onError: (err, _email, context) => {
       console.error("[AutoSendToggle] failed to save default sender:", err);
-      setLocalDefaultSender(prev);
-    } finally {
-      setSavingSender(false);
-    }
-  }
+      queryClient.setQueryData(queryKeys.workenvo.defaultSender(), context?.previous ?? "");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.workenvo.defaultSender() });
+    },
+  });
 
-  if (autoSend === null) return null;
+  if (autoSend === undefined) return null;
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -70,8 +76,8 @@ export default function AutoSendToggle() {
       >
         <button
           type="button"
-          onClick={toggle}
-          disabled={saving}
+          onClick={() => toggleMutation.mutate(!autoSend)}
+          disabled={toggleMutation.isPending}
           className="flex items-center gap-2 rounded-full border border-border bg-surface-raised px-3.5 py-2 text-xs font-medium text-ink-muted transition-colors hover:text-ink disabled:opacity-50 active:scale-[0.97]"
         >
           <span
@@ -94,8 +100,8 @@ export default function AutoSendToggle() {
         <Tooltip label="New drafts send automatically from this address">
           <select
             value={defaultSender}
-            onChange={(e) => handleSenderChange(e.target.value)}
-            disabled={savingSender}
+            onChange={(e) => senderMutation.mutate(e.target.value)}
+            disabled={senderMutation.isPending}
             className="rounded-full border border-border bg-surface-raised px-3 py-2 text-xs text-ink-muted outline-none disabled:opacity-50"
           >
             {senderOptions.map((opt) => (

@@ -127,6 +127,26 @@ button,
   }
 }
 
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
+
+.skeleton {
+  background-image: linear-gradient(
+    100deg,
+    var(--surface-raised) 40%,
+    oklch(1 0 0 / 10%) 50%,
+    var(--surface-raised) 60%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.8s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

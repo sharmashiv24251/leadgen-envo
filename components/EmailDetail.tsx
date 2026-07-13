@@ -1,5 +1,6 @@
 "use client";
 
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Chip from "@/components/Chip";
@@ -10,13 +11,8 @@ import Tooltip from "@/components/Tooltip";
 import { getAccount } from "@/lib/auth";
 import { copySelectionOr } from "@/lib/clipboard";
 import type { Prospect } from "@/lib/data";
-import {
-  approveEmail,
-  fetchEmailStatus,
-  fetchSenderOptions,
-  updateEmailDraft,
-  type SenderOption,
-} from "@/lib/workenvoData";
+import { queryKeys } from "@/lib/queryKeys";
+import { approveEmail, fetchEmailStatus, fetchSenderOptions, updateEmailDraft } from "@/lib/workenvoData";
 
 const TERMINAL_SEND_STATUSES = new Set(["sent", "failed", "bounced"]);
 const POLL_INTERVAL_MS = 2000;
@@ -29,24 +25,23 @@ function toTelHref(phone: string): string {
 export default function EmailDetail({
   prospect,
   status,
-  onSaved,
 }: {
   prospect: Prospect;
   status?: string;
-  onSaved?: () => void;
 }) {
+  const queryClient = useQueryClient();
   const [canEdit, setCanEdit] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [subject, setSubject] = useState(prospect.subject);
   const [body, setBody] = useState(prospect.body);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-
-  const [senderOptions, setSenderOptions] = useState<SenderOption[]>([]);
   const [selectedSender, setSelectedSender] = useState("");
-  const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
-  const cancelledRef = useRef(false);
+
+  // Set the instant a send is kicked off, cleared once fetchEmailStatus reports a terminal
+  // status (or POLL_TIMEOUT_MS elapses) — drives both the status-polling query below and
+  // the "Sending…" button state.
+  const [trackingContactId, setTrackingContactId] = useState<string | null>(null);
+  const sendStartedAtRef = useRef(0);
   const showContextMenu = useContextMenu();
 
   useLayoutEffect(() => {
@@ -57,84 +52,82 @@ export default function EmailDetail({
     setSubject(prospect.subject);
     setBody(prospect.body);
     setIsEditing(false);
-    setSaveError(null);
-    setSending(false);
     setSendError(null);
+    setTrackingContactId(null);
   }, [prospect.id, prospect.subject, prospect.body]);
 
-  useEffect(() => {
-    if (!canEdit) return;
-    fetchSenderOptions().then((opts) => {
-      setSenderOptions(opts);
-      setSelectedSender((prev) => prev || opts[0]?.email || "");
-    });
-  }, [canEdit]);
+  // Same query key AutoSendToggle uses — one fetch serves both.
+  const { data: senderOptions = [] } = useQuery({
+    queryKey: queryKeys.workenvo.senderOptions(),
+    queryFn: fetchSenderOptions,
+    enabled: canEdit,
+  });
 
   useEffect(() => {
-    cancelledRef.current = false;
-    return () => {
-      cancelledRef.current = true;
-    };
-  }, [prospect.id]);
+    setSelectedSender((prev) => prev || senderOptions[0]?.email || "");
+  }, [senderOptions]);
 
-  async function handleApprove() {
-    setSending(true);
-    setSendError(null);
-    try {
-      await approveEmail(prospect.id, selectedSender || undefined);
-      onSaved?.();
+  const statusQuery = useQuery({
+    queryKey: queryKeys.workenvo.emailStatus(prospect.id),
+    queryFn: () => fetchEmailStatus(prospect.id),
+    enabled: trackingContactId === prospect.id,
+    refetchInterval: POLL_INTERVAL_MS,
+  });
 
-      const start = Date.now();
-      const poll = async () => {
-        if (cancelledRef.current) return;
-        const currentStatus = await fetchEmailStatus(prospect.id);
-        if (cancelledRef.current) return;
-        if (currentStatus && TERMINAL_SEND_STATUSES.has(currentStatus)) {
-          setSending(false);
-          if (currentStatus === "failed") {
-            setSendError("Send failed — check the notifications panel for details, then try again.");
-          }
-          onSaved?.();
-          return;
-        }
-        if (Date.now() - start > POLL_TIMEOUT_MS) {
-          setSending(false);
-          onSaved?.();
-          return;
-        }
-        setTimeout(poll, POLL_INTERVAL_MS);
-      };
-      setTimeout(poll, POLL_INTERVAL_MS);
-    } catch (err) {
-      setSending(false);
-      setSendError(err instanceof Error ? err.message : "Failed to send.");
+  useEffect(() => {
+    if (trackingContactId !== prospect.id) return;
+    const currentStatus = statusQuery.data;
+    const isTerminal = !!currentStatus && TERMINAL_SEND_STATUSES.has(currentStatus);
+    const timedOut = Date.now() - sendStartedAtRef.current > POLL_TIMEOUT_MS;
+    if (!isTerminal && !timedOut) return;
+
+    setTrackingContactId(null);
+    if (currentStatus === "failed") {
+      setSendError("Send failed — check the notifications panel for details, then try again.");
     }
-  }
+    queryClient.invalidateQueries({ queryKey: queryKeys.workenvo.data() });
+  }, [statusQuery.data, trackingContactId, prospect.id, queryClient]);
+
+  const approveMutation = useMutation<void, Error, void>({
+    mutationFn: () => approveEmail(prospect.id, selectedSender || undefined),
+    onSuccess: () => {
+      setSendError(null);
+      queryClient.invalidateQueries({ queryKey: queryKeys.workenvo.data() });
+      // Wipe any status cached from a previous send on this contact (e.g. a "failed" from
+      // a prior attempt) — otherwise re-enabling the query below would hand the effect that
+      // stale terminal value before the new attempt's real result exists, and it'd read the
+      // old send's outcome as the new one's.
+      queryClient.removeQueries({ queryKey: queryKeys.workenvo.emailStatus(prospect.id) });
+      sendStartedAtRef.current = Date.now();
+      setTrackingContactId(prospect.id);
+    },
+    onError: (err) => {
+      setSendError(err.message || "Failed to send.");
+    },
+  });
+
+  const saveMutation = useMutation<void, Error, void>({
+    mutationFn: () => updateEmailDraft(prospect.id, { subject, body }),
+    onSuccess: () => {
+      setIsEditing(false);
+      queryClient.invalidateQueries({ queryKey: queryKeys.workenvo.data() });
+    },
+  });
+
+  const sending = approveMutation.isPending || trackingContactId === prospect.id;
+  const saving = saveMutation.isPending;
+  const saveError = saveMutation.error?.message ?? null;
 
   function handleEditStart() {
-    setSaveError(null);
+    saveMutation.reset();
     setIsEditing(true);
   }
 
   function handleCancel() {
     setSubject(prospect.subject);
     setBody(prospect.body);
-    setSaveError(null);
+    saveMutation.reset();
     setIsEditing(false);
-  }
-
-  async function handleSave() {
-    setSaving(true);
-    setSaveError(null);
-    try {
-      await updateEmailDraft(prospect.id, { subject, body });
-      setIsEditing(false);
-      onSaved?.();
-    } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "Failed to save.");
-    } finally {
-      setSaving(false);
-    }
   }
 
   const backHref = status ? `/emails?status=${status}` : "/emails";
@@ -253,7 +246,7 @@ export default function EmailDetail({
                     </button>
                     <button
                       type="button"
-                      onClick={handleSave}
+                      onClick={() => saveMutation.mutate()}
                       disabled={saving}
                       className="rounded-full bg-accent-strong px-4 py-2 text-xs font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-50 active:scale-[0.97]"
                     >
@@ -279,7 +272,7 @@ export default function EmailDetail({
                     )}
                     <button
                       type="button"
-                      onClick={handleApprove}
+                      onClick={() => approveMutation.mutate()}
                       disabled={isEditing || sending}
                       className="rounded-full bg-accent-strong px-4 py-2 text-xs font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-50 active:scale-[0.97]"
                     >

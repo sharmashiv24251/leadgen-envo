@@ -1,6 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { getAccount, isAuthenticated } from "@/lib/auth";
 import {
   activityFeed as mockActivity,
@@ -10,45 +11,46 @@ import {
   type DashboardStats,
   type Prospect,
 } from "@/lib/data";
+import { queryKeys } from "@/lib/queryKeys";
 import { fetchWorkenvoData } from "@/lib/workenvoData";
 
-// Both hooks render the mock account's data on the very first pass (server-safe, no
-// hydration mismatch — matches TopBar's own clock pattern). If the logged-in account
-// turns out to be "workenvo", useLayoutEffect flips to a loading state BEFORE the
-// browser paints, so the mock frame never actually becomes visible — it's swapped
-// pre-paint, not after a visible flash.
+// The account check must happen client-side (localStorage) and can't run during SSR/the
+// first client render without risking a hydration mismatch. useLayoutEffect flips this
+// before the browser paints, so — combined with `enabled` below — the mock frame is what
+// briefly exists, never what's actually painted.
+export function useIsWorkenvoAccount(): boolean {
+  const [isWorkenvo, setIsWorkenvo] = useState(false);
+  useLayoutEffect(() => {
+    setIsWorkenvo(isAuthenticated() && getAccount() === "workenvo");
+  }, []);
+  return isWorkenvo;
+}
 
+// Both hooks below share one query key: prospects/stats/activity all come from the same
+// `emails` query, so mounting the dashboard and the emails sidebar at once (or navigating
+// between them within the staleTime window) reuses one cached fetch instead of two.
 export function useProspects(): {
   prospects: Prospect[];
   loading: boolean;
   refetch: () => void;
 } {
-  const [state, setState] = useState<{ prospects: Prospect[]; loading: boolean }>({
-    prospects: mockProspects,
-    loading: false,
+  const isWorkenvo = useIsWorkenvoAccount();
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: queryKeys.workenvo.data(),
+    queryFn: fetchWorkenvoData,
+    enabled: isWorkenvo,
+    // This data can change from outside the app (the backend VM drafting new emails,
+    // a teammate approving one) — every mount should hit Supabase, not just serve
+    // whatever's still under staleTime. Concurrent mounts on the same key still share
+    // one in-flight request, so this doesn't cost extra fetches, just guarantees freshness.
+    refetchOnMount: "always",
   });
 
-  function load() {
-    if (!isAuthenticated() || getAccount() !== "workenvo") return;
-    setState((prev) => ({ prospects: prev.prospects, loading: true }));
-    fetchWorkenvoData().then(({ prospects }) => {
-      setState({ prospects, loading: false });
-    });
-  }
-
-  useLayoutEffect(() => {
-    if (!isAuthenticated() || getAccount() !== "workenvo") return;
-    let cancelled = false;
-    setState({ prospects: [], loading: true });
-    fetchWorkenvoData().then(({ prospects }) => {
-      if (!cancelled) setState({ prospects, loading: false });
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return { ...state, refetch: load };
+  return {
+    prospects: data?.prospects ?? mockProspects,
+    loading: isWorkenvo && isLoading,
+    refetch: () => void refetch(),
+  };
 }
 
 export function useDashboardData(): {
@@ -56,27 +58,17 @@ export function useDashboardData(): {
   activity: ActivityEvent[];
   loading: boolean;
 } {
-  const [state, setState] = useState<{
-    stats: DashboardStats;
-    activity: ActivityEvent[];
-    loading: boolean;
-  }>({ stats: mockStats, activity: mockActivity, loading: false });
+  const isWorkenvo = useIsWorkenvoAccount();
+  const { data, isLoading } = useQuery({
+    queryKey: queryKeys.workenvo.data(),
+    queryFn: fetchWorkenvoData,
+    enabled: isWorkenvo,
+    refetchOnMount: "always",
+  });
 
-  useLayoutEffect(() => {
-    if (!isAuthenticated() || getAccount() !== "workenvo") return;
-    let cancelled = false;
-    setState({
-      stats: { emailsDelivered: 0, bounceRatePct: 0, replyRatePct: 0, totalDrafted: 0 },
-      activity: [],
-      loading: true,
-    });
-    fetchWorkenvoData().then(({ stats, activity }) => {
-      if (!cancelled) setState({ stats, activity, loading: false });
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return state;
+  return {
+    stats: data?.stats ?? mockStats,
+    activity: data?.activity ?? mockActivity,
+    loading: isWorkenvo && isLoading,
+  };
 }

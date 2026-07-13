@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import AppShell from "@/components/AppShell";
 import ContextMenuProvider from "@/components/ContextMenu";
+import QueryProvider from "@/components/QueryProvider";
 import TopBar from "@/components/TopBar";
 
 const inter = Inter({
@@ -24,10 +25,12 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} h-full`}>
       <body className="flex h-full flex-col overflow-hidden bg-bg font-sans text-ink antialiased">
-        <ContextMenuProvider>
-          <TopBar />
-          <AppShell>{children}</AppShell>
-        </ContextMenuProvider>
+        <QueryProvider>
+          <ContextMenuProvider>
+            <TopBar />
+            <AppShell>{children}</AppShell>
+          </ContextMenuProvider>
+        </QueryProvider>
       </body>
     </html>
   );

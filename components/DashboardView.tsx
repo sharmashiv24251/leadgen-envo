@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import AgentsBanner from "@/components/AgentsBanner";
 import AutoSendToggle from "@/components/AutoSendToggle";
 import RunTrigger from "@/components/RunTrigger";
+import { ActivityRowSkeleton, StatPanelSkeleton } from "@/components/Skeleton";
 import { getAccount, isAuthenticated } from "@/lib/auth";
 import { type ActivityTone } from "@/lib/data";
 import { useDashboardData } from "@/lib/useAccountData";
@@ -150,57 +151,72 @@ export default function DashboardView() {
         )}
       </div>
 
-      {loading && (
-        <p className="mb-6 animate-pulse text-sm text-ink-muted">Loading Workenvo data…</p>
-      )}
-
       <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
-        <StatPanel
-          label="Total leads found"
-          value={dashboardStats.totalDrafted.toLocaleString("en-US")}
-          icon="target"
-          hero
-        />
-        <StatPanel
-          label="Reply rate"
-          value={`${dashboardStats.replyRatePct.toFixed(1)}%`}
-          icon="chat"
-          tone={dashboardStats.replyRatePct > 0 ? "success" : "muted"}
-        />
-        <StatPanel
-          label="Emails delivered"
-          value={dashboardStats.emailsDelivered.toLocaleString("en-US")}
-          icon="send"
-        />
-        <StatPanel
-          label="Total drafted"
-          value={dashboardStats.totalDrafted.toLocaleString("en-US")}
-          icon="draft"
-        />
+        {loading ? (
+          <>
+            <StatPanelSkeleton hero />
+            <StatPanelSkeleton />
+            <StatPanelSkeleton />
+            <StatPanelSkeleton />
+          </>
+        ) : (
+          <>
+            <StatPanel
+              label="Total leads found"
+              value={dashboardStats.totalDrafted.toLocaleString("en-US")}
+              icon="target"
+              hero
+            />
+            <StatPanel
+              label="Reply rate"
+              value={`${dashboardStats.replyRatePct.toFixed(1)}%`}
+              icon="chat"
+              tone={dashboardStats.replyRatePct > 0 ? "success" : "muted"}
+            />
+            <StatPanel
+              label="Emails delivered"
+              value={dashboardStats.emailsDelivered.toLocaleString("en-US")}
+              icon="send"
+            />
+            <StatPanel
+              label="Total drafted"
+              value={dashboardStats.totalDrafted.toLocaleString("en-US")}
+              icon="draft"
+            />
+          </>
+        )}
       </div>
 
       <div className="mt-10">
         <h2 className="mb-3 text-sm font-medium text-ink-muted">Recent activity</h2>
         <div className="overflow-hidden rounded-2xl border border-border bg-surface shadow-[var(--shadow-panel-sm)]">
-          {activityFeed.length === 0 && !loading && (
+          {loading ? (
+            <>
+              <ActivityRowSkeleton isFirst />
+              <ActivityRowSkeleton />
+              <ActivityRowSkeleton />
+              <ActivityRowSkeleton />
+            </>
+          ) : activityFeed.length === 0 ? (
             <p className="px-4 py-3 text-sm text-ink-muted">No activity yet</p>
+          ) : (
+            activityFeed.map((event, i) => (
+              <Link
+                key={event.id}
+                href={`/emails/${event.prospectId}`}
+                className={`flex items-center gap-3 px-4 py-3 transition-colors active:scale-[0.99] hover:bg-surface-raised ${i !== 0 ? "border-t border-border" : ""}`}
+              >
+                <span
+                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${toneDotClasses[event.tone]}`}
+                  aria-hidden
+                />
+                <span className="w-16 shrink-0 text-xs tabular-nums text-ink-muted">
+                  {event.timeAgo}
+                </span>
+                <span className="text-sm text-ink">{event.description}</span>
+              </Link>
+            ))
           )}
-          {activityFeed.map((event, i) => (
-            <Link
-              key={event.id}
-              href={`/emails/${event.prospectId}`}
-              className={`flex items-center gap-3 px-4 py-3 transition-colors active:scale-[0.99] hover:bg-surface-raised ${i !== 0 ? "border-t border-border" : ""}`}
-            >
-              <span
-                className={`h-1.5 w-1.5 shrink-0 rounded-full ${toneDotClasses[event.tone]}`}
-                aria-hidden
-              />
-              <span className="w-16 shrink-0 text-xs tabular-nums text-ink-muted">
-                {event.timeAgo}
-              </span>
-              <span className="text-sm text-ink">{event.description}</span>
-            </Link>
-          ))}
         </div>
       </div>
 

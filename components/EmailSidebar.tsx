@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import Chip from "@/components/Chip";
+import { ProspectRowSkeleton } from "@/components/Skeleton";
 import { dateGroupLabel, type Prospect, type ProspectStatus } from "@/lib/data";
 import { statusTone } from "@/lib/status";
 import { useProspects } from "@/lib/useAccountData";
@@ -107,9 +108,11 @@ function EmailSidebarContent() {
       <StatusFilterBar activeStatus={activeStatus} />
 
       {loading && (
-        <p className="animate-pulse px-4 py-3 text-sm text-ink-muted">
-          Loading Workenvo data…
-        </p>
+        <div className="flex flex-col gap-0.5 px-2 pt-2">
+          {Array.from({ length: 7 }).map((_, i) => (
+            <ProspectRowSkeleton key={i} />
+          ))}
+        </div>
       )}
 
       {!loading && groups.map(([daysAgo, group]) => {

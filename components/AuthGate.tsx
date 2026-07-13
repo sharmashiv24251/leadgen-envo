@@ -4,7 +4,13 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { isAuthenticated } from "@/lib/auth";
 
-export default function AuthGate({ children }: { children: React.ReactNode }) {
+export default function AuthGate({
+  children,
+  fallback = null,
+}: {
+  children: React.ReactNode;
+  fallback?: React.ReactNode;
+}) {
   const router = useRouter();
   const [verified, setVerified] = useState(false);
 
@@ -16,15 +22,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     }
   }, [router]);
 
-  if (!verified) {
-    return (
-      <div className="flex flex-1 items-center justify-center">
-        <p className="animate-pulse text-sm text-ink-muted">
-          Verifying access…
-        </p>
-      </div>
-    );
-  }
+  if (!verified) return <>{fallback}</>;
 
   return <>{children}</>;
 }

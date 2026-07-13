@@ -433,7 +433,25 @@ This adds outbound email. Until now, drafts sit in the database with `status='dr
 
 ## 2.1 — Gmail service account (one-time, needs Workspace admin)
 
-**Google Cloud (your credits project):**
+**STATUS: done (2026-07-13).** Actual values used (differ slightly from the placeholder
+names below — recorded here so nobody re-derives or duplicates this):
+- GCP project: `Leadgen`. Gmail API enabled.
+- Service account: `workenvo-gmail-sender` (not `workenvo-sender`), no IAM roles granted
+  (none needed — access comes from Workspace delegation, not project IAM).
+- Client ID (service account Unique ID): `102461381722782053803`.
+- JSON key downloaded as `Leadgen Gmail Sender.json` — currently sitting on Shivansh's
+  local machine only. **Not yet moved to the VM.** Treat as a live credential (chmod 600,
+  never git-add) until it's relocated per 2.1a below.
+- Workspace admin console (envo.club, Saransh's login): Security → API controls →
+  Domain-wide delegation → this Client ID is authorized for scope `.../auth/gmail.send`
+  only. **`gmail.readonly` was NOT added** — reply detection (§2.4) can't work yet; add
+  that scope in the same admin screen when reply polling gets built.
+- Because delegation is domain-wide (not per-mailbox), the JWT `subject` can be set to
+  any real Workspace user mailbox on envo.club (`saransh@`, `info@`, `hello@`, ...) with
+  no further admin action — confirm with Saransh whether `info@`/`hello@` are actual
+  licensed mailboxes or just aliases/groups before relying on that.
+
+Original one-time setup steps, for reference / redoing on a new project:
 1. APIs & Services → Enable APIs → **Gmail API** → Enable.
 2. IAM & Admin → Service Accounts → Create. Name: `workenvo-sender`. No roles.
 3. Open it → Keys → Add key → JSON. Download → this is `gmail-sa.json` (lives only on the VM, chmod 600, never in git).
@@ -446,6 +464,11 @@ This adds outbound email. Until now, drafts sit in the database with `status='dr
    `https://www.googleapis.com/auth/gmail.send,https://www.googleapis.com/auth/gmail.readonly`
    (Send-only if you want to defer reply detection; add readonly when you build the poller.)
 8. Authorise.
+
+## 2.1a — NEXT UP: move the key to the VM, then §2.2
+Not started yet. Needs: copy `Leadgen Gmail Sender.json` to the VM (e.g.
+`~/leadgen-envo/backend/gmail-sa.json`), `chmod 600`, confirm it's covered by `.gitignore`,
+then proceed to 2.2's `send-test.js` to prove sending works before wiring into the app.
 
 ## 2.2 — Prove sending works standalone before wiring it in
 `send-test.js`:

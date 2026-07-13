@@ -60,8 +60,19 @@ both only ever talk to Supabase; a `run_requests` table is the queue connecting 
   picks it up within 30s. Status shown live (queued/running).
 - `TopBar.tsx` has the sign-out button and shows the active account's brand name.
 
+## Phase 2 (Gmail sending) — in progress
+Full detail/actual values: `backend/devinstruction.md` §2.1. Status as of 2026-07-13:
+- Done: Gmail API enabled on GCP project `Leadgen`; service account `workenvo-gmail-sender`
+  created (Client ID `102461381722782053803`); domain-wide delegation authorized in envo.club's
+  Workspace admin console for scope `gmail.send` only (`gmail.readonly` not yet added, so reply
+  detection can't be built until that's granted). Delegation is domain-wide, so sending can
+  impersonate any real mailbox on envo.club, not just `saransh@` — worth confirming which of
+  `info@`/`hello@` are real seats vs. aliases before building sender-selection.
+- Not done: the JSON key (`Leadgen Gmail Sender.json`) is still local-only, not yet moved to the
+  VM; no send code written yet (`send-test.js`, sender loop, dashboard wiring per §2.2-2.3 all
+  pending). Everything still runs draft-only (`auto_send=false`); `bounced` status exists in the
+  schema but nothing sets it. Reply polling (§2.4) blocked on the missing readonly scope.
+
 ## Not built yet / explicitly deferred
-- Phase 2 (Gmail sending, reply/bounce detection) — not started. Everything today is
-  draft-only (`auto_send=false`). `bounced` status exists in the schema but nothing sets it.
 - CI/CD is manual by choice (redeploy = SSH + `git pull` + restart, not on every push).
 - No alerting if the scheduler process goes down and stays down.

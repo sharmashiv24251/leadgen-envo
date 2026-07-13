@@ -38,13 +38,13 @@ export default function LoginPage() {
           <span className="font-medium text-ink">thehrcompany</span>
         </div>
 
-        <p className="mb-6 text-xs font-medium uppercase tracking-wide text-ink-muted">
-          Command Center Access
+        <p className="mb-6 text-sm text-ink-muted">
+          Command Center access
         </p>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium uppercase tracking-wide text-ink-muted">
+            <span className="text-xs font-medium text-ink-muted">
               Email
             </span>
             <input
@@ -55,13 +55,13 @@ export default function LoginPage() {
                 setOperatorId(e.target.value);
                 setDenied(false);
               }}
-              className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-ink outline-none placeholder:text-ink-faint focus:border-border-strong"
+              className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-ink outline-none placeholder:text-ink-muted focus:border-accent"
               placeholder="email"
             />
           </label>
 
           <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium uppercase tracking-wide text-ink-muted">
+            <span className="text-xs font-medium text-ink-muted">
               Password
             </span>
             <input
@@ -72,7 +72,7 @@ export default function LoginPage() {
                 setAccessKey(e.target.value);
                 setDenied(false);
               }}
-              className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-ink outline-none placeholder:text-ink-faint focus:border-border-strong"
+              className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-ink outline-none placeholder:text-ink-muted focus:border-accent"
               placeholder="password"
             />
           </label>
@@ -85,7 +85,7 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            className="mt-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-ink transition-opacity hover:opacity-90"
+            className="mt-2 rounded-full bg-accent-strong px-4 py-2 text-sm font-medium text-accent-ink transition-opacity hover:opacity-90"
           >
             Authenticate
           </button>

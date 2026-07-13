@@ -49,14 +49,14 @@ export default function RunTrigger() {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-ink transition-opacity hover:opacity-90"
+          className="rounded-full bg-accent-strong px-4 py-2 text-sm font-medium text-accent-ink transition-opacity hover:opacity-90"
         >
           Run outreach ▸
         </button>
       )}
 
       {open && (
-        <div className="flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2">
+        <div className="flex items-center gap-2 rounded-full border border-border bg-surface-raised py-1 pl-4 pr-1.5">
           <label htmlFor="run-count" className="text-xs text-ink-muted">
             How many?
           </label>
@@ -67,20 +67,20 @@ export default function RunTrigger() {
             max={100}
             value={count}
             onChange={(e) => setCount(Math.max(1, Math.min(100, Number(e.target.value) || 1)))}
-            className="w-16 rounded-md border border-border bg-bg px-2 py-1 text-sm text-ink outline-none"
+            className="w-14 rounded-full border border-border bg-bg px-2 py-1 text-sm text-ink outline-none"
           />
           <button
             type="button"
             onClick={handleStart}
             disabled={submitting}
-            className="rounded-md bg-accent px-3 py-1 text-xs font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="rounded-full bg-accent-strong px-3 py-1.5 text-xs font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {submitting ? "Starting…" : "Start"}
           </button>
           <button
             type="button"
             onClick={() => setOpen(false)}
-            className="rounded-md border border-border px-3 py-1 text-xs font-medium text-ink-muted transition-colors hover:text-ink"
+            className="rounded-full px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:text-ink"
           >
             Cancel
           </button>
@@ -90,8 +90,8 @@ export default function RunTrigger() {
       {statusLabel && (
         <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-raised px-2.5 py-1 text-xs text-ink-muted">
           <span className="relative flex h-1.5 w-1.5 shrink-0" aria-hidden>
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-75" />
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-75" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-success" />
           </span>
           {statusLabel}
         </span>

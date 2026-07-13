@@ -66,7 +66,7 @@ export default function AutoSendToggle() {
             ? "New drafts send automatically. Click to require manual review."
             : "New drafts wait for review. Click to send automatically instead."
         }
-        className="flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-xs font-medium text-ink-muted transition-colors hover:text-ink disabled:opacity-50"
+        className="flex items-center gap-2 rounded-full border border-border bg-surface-raised px-3.5 py-2 text-xs font-medium text-ink-muted transition-colors hover:text-ink disabled:opacity-50"
       >
         <span
           className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors ${
@@ -89,7 +89,7 @@ export default function AutoSendToggle() {
           onChange={(e) => handleSenderChange(e.target.value)}
           disabled={savingSender}
           title="New drafts send automatically from this address"
-          className="rounded-lg border border-border bg-surface px-2 py-2 text-xs text-ink-muted outline-none disabled:opacity-50"
+          className="rounded-full border border-border bg-surface-raised px-3 py-2 text-xs text-ink-muted outline-none disabled:opacity-50"
         >
           {senderOptions.map((opt) => (
             <option key={opt.email} value={opt.email}>

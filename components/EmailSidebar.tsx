@@ -97,9 +97,9 @@ function EmailSidebarContent() {
 
   return (
     <aside className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:flex-none lg:w-96 lg:border-r lg:border-border">
-      <div className="sticky top-0 flex items-center gap-2 border-b border-border bg-surface px-4 py-3 text-xs font-medium uppercase tracking-wide text-ink-muted">
+      <div className="sticky top-0 flex items-center gap-2 border-b border-border bg-surface px-4 py-3 text-sm font-medium text-ink">
         Prospects
-        <span className="rounded-full border border-border px-2 py-0.5 text-ink-faint">
+        <span className="rounded-full border border-border px-2 py-0.5 text-xs text-ink-muted">
           {filteredProspects.length}
         </span>
       </div>
@@ -107,58 +107,62 @@ function EmailSidebarContent() {
       <StatusFilterBar activeStatus={activeStatus} />
 
       {loading && (
-        <p className="animate-pulse px-4 py-3 text-xs font-medium uppercase tracking-wide text-ink-muted">
-          loading Workenvo data…
+        <p className="animate-pulse px-4 py-3 text-sm text-ink-muted">
+          Loading Workenvo data…
         </p>
       )}
 
       {!loading && groups.map(([daysAgo, group]) => {
         const isCollapsed = collapsed.has(daysAgo);
         return (
-          <div key={daysAgo} className="border-b border-border">
+          <div key={daysAgo} className="border-b border-border pb-1">
             <button
               type="button"
               onClick={() => toggle(daysAgo)}
-              className="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-ink-muted transition-colors hover:text-ink"
+              className="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-xs font-medium text-ink-muted transition-colors hover:text-ink"
             >
               <span className="flex items-center gap-2">
                 <span aria-hidden>{isCollapsed ? "▸" : "▾"}</span>
                 {dateGroupLabel(daysAgo)}
               </span>
-              <span className="text-ink-faint">{group.length}</span>
+              <span>{group.length}</span>
             </button>
 
             {!isCollapsed && group.length === 0 && (
-              <p className="px-4 pb-3 text-xs text-ink-faint">No emails yet</p>
+              <p className="px-4 pb-3 text-sm text-ink-muted">No emails yet</p>
             )}
 
             {!isCollapsed && group.length > 0 && (
-              <ul>
+              <ul className="flex flex-col gap-0.5 px-2">
                 {group.map((prospect) => {
                   const isSelected = pathname === `/emails/${prospect.id}`;
                   return (
-                    <li key={prospect.id} className="border-t border-border">
+                    <li key={prospect.id}>
                       <Link
                         href={`/emails/${prospect.id}${queryString}`}
                         aria-current={isSelected ? "page" : undefined}
-                        className={`flex w-full flex-col gap-2 px-4 py-4 text-left transition-colors ${
-                          isSelected
-                            ? "bg-accent-dim"
-                            : "hover:bg-surface"
+                        className={`flex w-full flex-col gap-2 rounded-lg px-3 py-3 text-left transition-colors ${
+                          isSelected ? "bg-accent-strong" : "hover:bg-surface-raised"
                         }`}
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <span className="truncate text-sm font-medium text-ink">
+                          <span
+                            className={`truncate text-sm font-medium ${isSelected ? "text-accent-ink" : "text-ink"}`}
+                          >
                             {prospect.name}
                           </span>
                           <Chip tone={statusTone[prospect.status]}>
                             {prospect.status}
                           </Chip>
                         </div>
-                        <span className="truncate text-xs text-ink-muted">
+                        <span
+                          className={`truncate text-xs ${isSelected ? "text-accent-ink/85" : "text-ink-muted"}`}
+                        >
                           {prospect.title} · {prospect.company}
                         </span>
-                        <div className="flex items-center gap-2 font-mono text-[11px] text-ink-faint">
+                        <div
+                          className={`flex items-center gap-2 text-xs ${isSelected ? "text-accent-ink/72" : "text-ink-muted"}`}
+                        >
                           <span className="truncate">{prospect.subject}</span>
                           {prospect.isDemo && (
                             <>

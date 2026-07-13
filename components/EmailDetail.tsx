@@ -146,21 +146,21 @@ export default function EmailDetail({
           Back to list
         </Link>
 
-        <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow-panel-sm)]">
+        <div className="rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-panel-sm)]">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h1 className="text-lg font-semibold text-ink">{prospect.name}</h1>
               <p className="mt-1 text-sm text-ink-muted">
                 {prospect.title} · {prospect.company}
               </p>
-              <p className="mt-1 font-mono text-xs text-ink-faint">
+              <p className="mt-1 text-xs text-ink-muted">
                 {prospect.location}
               </p>
             </div>
             <div className="flex flex-col items-end gap-2">
               <div className="flex items-center gap-2">
                 {prospect.isDemo && <Chip tone="neutral">Demo</Chip>}
-                <Chip tone={prospect.emailVerified ? "accent" : "neutral"}>
+                <Chip tone={prospect.emailVerified ? "success" : "neutral"}>
                   {prospect.emailVerified ? "Verified" : "Unverified"}
                 </Chip>
               </div>
@@ -170,7 +170,7 @@ export default function EmailDetail({
                 <a
                   href={toTelHref(prospect.phone)}
                   title={`Call ${prospect.phone}`}
-                  className="inline-flex items-center justify-center rounded-lg border border-pending/30 bg-pending-dim p-1.5 text-pending transition-colors hover:bg-pending/20"
+                  className="inline-flex items-center justify-center rounded-full border border-pending/30 bg-pending-dim p-1.5 text-pending transition-colors hover:bg-pending/20"
                 >
                   <PhoneIcon />
                 </a>
@@ -180,15 +180,15 @@ export default function EmailDetail({
         </div>
 
         <div className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-          <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow-panel-sm)]">
-            <h2 className="mb-4 text-xs font-medium uppercase tracking-wide text-ink-muted">
-              Why This Angle
+          <div className="rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-panel-sm)]">
+            <h2 className="mb-4 text-sm font-medium text-ink">
+              Why this angle
             </h2>
             <ul className="flex flex-col gap-4">
               {prospect.intel.map((point, i) => (
                 <li key={i} className="flex gap-3">
                   <span
-                    className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-accent/30 bg-accent-dim font-mono text-[10px] text-accent"
+                    className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-accent/30 bg-accent-dim text-[10px] font-medium text-accent"
                     aria-hidden
                   >
                     {i + 1}
@@ -201,17 +201,17 @@ export default function EmailDetail({
             </ul>
           </div>
 
-          <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow-panel-sm)]">
+          <div className="rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-panel-sm)]">
             <div className="mb-4 flex items-center justify-between gap-4">
-              <h2 className="text-xs font-medium uppercase tracking-wide text-ink-muted">
-                Email Draft
+              <h2 className="text-sm font-medium text-ink">
+                Email draft
               </h2>
               <div className="flex shrink-0 items-center gap-2">
                 {canEdit && !isEditing && (
                   <button
                     type="button"
                     onClick={handleEditStart}
-                    className="rounded-lg border border-border px-4 py-2 text-xs font-medium text-ink-muted transition-colors hover:text-ink"
+                    className="rounded-full border border-border bg-surface-raised px-4 py-2 text-xs font-medium text-ink-muted transition-colors hover:text-ink"
                   >
                     Edit
                   </button>
@@ -222,7 +222,7 @@ export default function EmailDetail({
                       type="button"
                       onClick={handleCancel}
                       disabled={saving}
-                      className="rounded-lg border border-border px-4 py-2 text-xs font-medium text-ink-muted transition-colors hover:text-ink disabled:opacity-50"
+                      className="rounded-full border border-border bg-surface-raised px-4 py-2 text-xs font-medium text-ink-muted transition-colors hover:text-ink disabled:opacity-50"
                     >
                       Cancel
                     </button>
@@ -230,7 +230,7 @@ export default function EmailDetail({
                       type="button"
                       onClick={handleSave}
                       disabled={saving}
-                      className="rounded-lg bg-accent px-4 py-2 text-xs font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-50"
+                      className="rounded-full bg-accent-strong px-4 py-2 text-xs font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-50"
                     >
                       {saving ? "Saving…" : "Save"}
                     </button>
@@ -243,7 +243,7 @@ export default function EmailDetail({
                         value={selectedSender}
                         onChange={(e) => setSelectedSender(e.target.value)}
                         disabled={isEditing || sending}
-                        className="rounded-lg border border-border bg-bg px-2 py-2 text-xs text-ink outline-none disabled:opacity-50"
+                        className="rounded-full border border-border bg-surface-raised px-3 py-2 text-xs text-ink outline-none disabled:opacity-50"
                       >
                         {senderOptions.map((opt) => (
                           <option key={opt.email} value={opt.email}>
@@ -256,7 +256,7 @@ export default function EmailDetail({
                       type="button"
                       onClick={handleApprove}
                       disabled={isEditing || sending}
-                      className="rounded-lg bg-accent px-4 py-2 text-xs font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-50"
+                      className="rounded-full bg-accent-strong px-4 py-2 text-xs font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-50"
                     >
                       {sending ? "Sending…" : "Send Now"}
                     </button>
@@ -277,7 +277,7 @@ export default function EmailDetail({
             )}
 
             <div className="mb-4">
-              <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-ink-muted">
+              <span className="mb-1.5 block text-xs font-medium text-ink-muted">
                 Subject
               </span>
               {isEditing ? (
@@ -295,7 +295,7 @@ export default function EmailDetail({
             </div>
 
             <div>
-              <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-ink-muted">
+              <span className="mb-1.5 block text-xs font-medium text-ink-muted">
                 Body
               </span>
               {isEditing ? (
@@ -315,12 +315,12 @@ export default function EmailDetail({
         </div>
 
         {prospect.response && (
-          <div className="rounded-xl border border-accent/30 bg-accent-dim p-5">
+          <div className="rounded-2xl border border-success/30 bg-success-dim p-5">
             <div className="mb-4 flex items-center gap-2">
-              <h2 className="text-xs font-medium uppercase tracking-wide text-ink-muted">
-                Reply Received
+              <h2 className="text-sm font-medium text-ink">
+                Reply received
               </h2>
-              <Chip tone="accent">Responded</Chip>
+              <Chip tone="success">Responded</Chip>
             </div>
             <p className="max-w-[70ch] whitespace-pre-wrap text-sm leading-relaxed text-ink">
               {prospect.response}

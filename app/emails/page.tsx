@@ -2,7 +2,7 @@
 
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { type ProspectStatus } from "@/lib/data";
+import { type Prospect, type ProspectStatus } from "@/lib/data";
 import { useProspects } from "@/lib/useAccountData";
 import EmailsAutoOpen from "@/components/EmailsAutoOpen";
 
@@ -13,6 +13,11 @@ const VALID_STATUSES: ProspectStatus[] = [
   "RESPONDED",
 ];
 
+/** Most recent prospect in the list — lowest daysAgo, not array order (source order isn't guaranteed recency-sorted). */
+function latestOf(list: Prospect[]): Prospect {
+  return list.reduce((latest, p) => (p.daysAgo < latest.daysAgo ? p : latest));
+}
+
 function EmailsIndexContent() {
   const searchParams = useSearchParams();
   const status = searchParams.get("status");
@@ -21,9 +26,8 @@ function EmailsIndexContent() {
   if (loading || prospects.length === 0) return null;
 
   const activeStatus = VALID_STATUSES.find((s) => s === status?.toUpperCase());
-  const target = activeStatus
-    ? (prospects.find((p) => p.status === activeStatus) ?? prospects[0])
-    : prospects[0];
+  const matching = activeStatus ? prospects.filter((p) => p.status === activeStatus) : prospects;
+  const target = latestOf(matching.length > 0 ? matching : prospects);
 
   const targetHref = `/emails/${target.id}${activeStatus ? `?status=${status}` : ""}`;
 

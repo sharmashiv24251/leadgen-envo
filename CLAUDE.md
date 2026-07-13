@@ -57,22 +57,60 @@ both only ever talk to Supabase; a `run_requests` table is the queue connecting 
     (anon key, client-side fetch, hardcoded `WORKENVO_CLIENT_ID`).
 - Dashboard (`components/DashboardView.tsx`) shows a **"Run outreach ▸"** button (only for the
   workenvo account) — `components/RunTrigger.tsx` inserts a row into `run_requests`; the VM
-  picks it up within 30s. Status shown live (queued/running).
+  picks it up within 30s. Status shown live (queued/running). Also shows the auto-send toggle +
+  default-sender dropdown (`components/AutoSendToggle.tsx`, see Phase 2 below) and four KPI
+  panels in this order: Total Leads Found (hero) → Reply Rate → Emails Delivered → Total
+  Drafted (Bounce Rate panel was removed).
 - `TopBar.tsx` has the sign-out button and shows the active account's brand name.
 
-## Phase 2 (Gmail sending) — in progress
-Full detail/actual values: `backend/devinstruction.md` §2.1. Status as of 2026-07-13:
-- Done: Gmail API enabled on GCP project `Leadgen`; service account `workenvo-gmail-sender`
-  created (Client ID `102461381722782053803`); domain-wide delegation authorized in envo.club's
-  Workspace admin console for scope `gmail.send` only (`gmail.readonly` not yet added, so reply
-  detection can't be built until that's granted). Delegation is domain-wide, so sending can
-  impersonate any real mailbox on envo.club, not just `saransh@` — worth confirming which of
-  `info@`/`hello@` are real seats vs. aliases before building sender-selection.
-- Not done: the JSON key (`Leadgen Gmail Sender.json`) is still local-only, not yet moved to the
-  VM; no send code written yet (`send-test.js`, sender loop, dashboard wiring per §2.2-2.3 all
-  pending). Everything still runs draft-only (`auto_send=false`); `bounced` status exists in the
-  schema but nothing sets it. Reply polling (§2.4) blocked on the missing readonly scope.
+## Phase 2 (Gmail sending) — sending is done; reply/bounce detection is not
+Full original plan: `backend/devinstruction.md` §2 (superseded in places — see annotations
+there). Status as of 2026-07-13 (updated, same day, later session):
+
+**Architecture actually built — deliberately different from the original §2.3 plan.** Instead
+of a VM polling loop with the Gmail key on the VM, sending lives entirely in Supabase: a
+`wk-send-email` Edge Function (Gmail service-account JWT signed with Web Crypto, no `googleapis`
+dependency) holds the credential, and two Postgres triggers on `emails`
+(`emails_approved_send_insert`, `emails_approved_send`) fire it via `pg_net` the instant a row's
+`status` becomes `'approved'` — whether that happens because `wk-insert-draft` auto-approved it
+(`auto_send=true`) or a human clicked "Send Now" on a `draft`. **The GCP VM and the agent's
+`SKILL.md` needed zero changes** — `wk-insert-draft` already made the auto_send/draft decision
+server-side before this work started; the VM only ever calls that one function and has no
+knowledge that sending exists downstream. Confirmed unchanged: identical content hash and
+deploy timestamp on `wk-check-contacted`/`wk-find-email`/`wk-insert-draft`/`wk-notify` across
+the whole session.
+
+- **Done and live-verified with a real send** (Gmail `message_id` returned, email actually
+  arrived): Gmail API/service-account/delegation (unchanged from before, see §2.1); the
+  `wk-send-email` Edge Function; both Postgres triggers (INSERT path tested with a disposable
+  contact — confirmed it reaches the function; UPDATE path tested with a real send); the two
+  required secrets, `AGENT_TOKEN` copied into Supabase Vault (`vault.create_secret(...,
+  'agent_token')`) and `GMAIL_SA_KEY` as an Edge Function secret; `config` RLS (previously zero
+  policies — now public `SELECT` plus `UPDATE` scoped to only `auto_send`/`sender_email`, so the
+  anon key can't touch `daily_quota`/`paused`/`sender_options`); a new `config.sender_options`
+  row and a per-email `emails.send_from` override column, letting a specific send pick either
+  `saransh@envo.club` or `info@envo.club` — **both now confirmed to be real, working mailboxes**
+  (delivered live test emails as each), resolving the "is `info@` a real seat or an alias"
+  open question from earlier.
+- **Frontend, wired directly to Supabase (anon key), no backend call involved:** Command
+  Center has an auto-send toggle (`config.auto_send`) and, when on, a default-sender dropdown
+  (`config.sender_email`) — both in `components/AutoSendToggle.tsx`. The email detail page
+  (`components/EmailDetail.tsx`) replaced the old "Send via Gmail" compose-window button with a
+  per-email sender dropdown + "Send Now" button that actually calls the API path above.
+- **Existing drafts are never retroactively sent.** Toggling `auto_send` only edits the
+  `config` table; it never touches existing `emails` rows. Only newly-inserted drafts (after
+  the flag is on) get auto-approved; the flag is read once per email, at insert time.
+- **Not done:** reply detection and bounce detection — still blocked on the missing
+  `gmail.readonly` Workspace delegation scope (§2.4 was never built; `bounced` status exists in
+  the schema but nothing sets it). No rate-limit/quota backoff on send — any Gmail API error
+  just marks the row `failed` once (no auto-retry); low risk at today's `daily_quota=2` but a
+  gap vs. the original §2.3 plan if volume grows. **None of this is committed to git yet** —
+  still local working-tree changes (the Supabase-side migrations/Edge Function are already live
+  regardless of git, since they were applied directly).
 
 ## Not built yet / explicitly deferred
 - CI/CD is manual by choice (redeploy = SSH + `git pull` + restart, not on every push).
 - No alerting if the scheduler process goes down and stays down.
+- Reply detection and bounce detection (blocked on the missing `gmail.readonly` delegation
+  scope — see Phase 2).
+- Rate-limit/quota backoff on the send path (`wk-send-email` fails once, no auto-retry).

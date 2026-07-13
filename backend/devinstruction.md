@@ -450,6 +450,9 @@ names below — recorded here so nobody re-derives or duplicates this):
   any real Workspace user mailbox on envo.club (`saransh@`, `info@`, `hello@`, ...) with
   no further admin action — confirm with Saransh whether `info@`/`hello@` are actual
   licensed mailboxes or just aliases/groups before relying on that.
+  **RESOLVED (2026-07-13, later session): both `saransh@envo.club` and `info@envo.club`
+  confirmed to be real, working mailboxes — live test emails delivered successfully
+  impersonating each. `hello@` still unconfirmed/unused.**
 
 Original one-time setup steps, for reference / redoing on a new project:
 1. APIs & Services → Enable APIs → **Gmail API** → Enable.
@@ -465,12 +468,19 @@ Original one-time setup steps, for reference / redoing on a new project:
    (Send-only if you want to defer reply detection; add readonly when you build the poller.)
 8. Authorise.
 
-## 2.1a — NEXT UP: move the key to the VM, then §2.2
-Not started yet. Needs: copy `Leadgen Gmail Sender.json` to the VM (e.g.
-`~/leadgen-envo/backend/gmail-sa.json`), `chmod 600`, confirm it's covered by `.gitignore`,
-then proceed to 2.2's `send-test.js` to prove sending works before wiring into the app.
+## 2.1a — SUPERSEDED: the key never moved to the VM
+**Decision made 2026-07-13 (later session): §2.1a-2.3 below were NOT followed as written.**
+Instead of moving the JSON key to the VM and running a Node polling loop there, the key was
+uploaded directly as a Supabase Edge Function secret (`supabase secrets set GMAIL_SA_KEY="$(cat
+'Leadgen Gmail Sender.json')"`, done via the Studio dashboard since the CLI wasn't installed
+locally) and sending was built as a Supabase Edge Function (`wk-send-email`) triggered by a
+Postgres trigger on `emails`, instead of a VM loop. Rationale: the VM has no inbound ports and
+sending this way needs zero VM changes, zero VM redeploys, and the credential never has to
+leave Supabase's own secret store. See "ACTUAL IMPLEMENTATION" note at the top of §2.3 below
+for the real mechanism. The rest of this section (§2.2's `send-test.js`, §2.3's Node loop) is
+kept for historical/reference purposes only — none of it was actually run or written.
 
-## 2.2 — Prove sending works standalone before wiring it in
+## 2.2 — Prove sending works standalone before wiring it in (NOT DONE THIS WAY — see 2.1a)
 `send-test.js`:
 ```js
 // node send-test.js you@example.com
@@ -508,7 +518,35 @@ node send-test.js you@youremail.com
 ```
 If an email arrives from saransh@envo.club, Gmail is done.
 
-## 2.3 — Add the sender loop to the Node app
+## 2.3 — Add the sender loop to the Node app (SUPERSEDED — see 2.1a)
+**ACTUAL IMPLEMENTATION (2026-07-13, later session), for real:** no code was added to the Node
+app / VM at all. Instead:
+- A Postgres trigger function `wk_notify_email_approved()` (via `apply_migration`) calls
+  `net.http_post(...)` (the `pg_net` extension) against a new Edge Function `wk-send-email`,
+  authenticated with the same shared `AGENT_TOKEN` used by the other `wk-*` functions — copied
+  into Supabase Vault (`select vault.create_secret('<token>', 'agent_token');`) so the trigger
+  can read it without it ever being hardcoded in a migration.
+- Two triggers call that same function: `emails_approved_send_insert` (`AFTER INSERT ... WHEN
+  new.status='approved'` — covers `auto_send=true`, since `wk-insert-draft` inserts straight
+  into `approved`) and `emails_approved_send` (`AFTER UPDATE ... WHEN new.status='approved' AND
+  old.status IS DISTINCT FROM 'approved'` — covers a human clicking "Send Now" on a `draft`).
+  Both were empirically verified to fire (not just assumed from the trigger definition).
+- `wk-send-email` itself: loads the email + contact, guards on `contact.email_status ===
+  'verified'`, resolves the sender as `email.send_from ?? config.sender_email` (new
+  `emails.send_from` column + new `config.sender_options` row support per-address selection),
+  signs an RS256 JWT with the `GMAIL_SA_KEY` secret using the Web Crypto API directly (no
+  `googleapis` npm dependency — Deno edge runtime), exchanges it at Google's token endpoint,
+  and POSTs to `gmail.googleapis.com/gmail/v1/users/me/messages/send`. On any failure it sets
+  `status='failed'` and writes a `notifications` row immediately (including when a required
+  secret is simply missing — this was a real bug initially: the trigger silently no-op'd with
+  only a Postgres `RAISE WARNING` when `agent_token` wasn't in Vault yet, instead of failing
+  loudly like every other error path; fixed so it now always fails visibly).
+- **Gap vs. the plan below:** no quota/rate-limit backoff loop — a Gmail API error just fails
+  the send once, no automatic retry. The `every 2 min` polling loop, the `sending` idempotency
+  latch, and the daily-quota-pause-until-08:05 logic described below were never built. Low risk
+  today at `daily_quota=2`, but worth building if volume grows.
+
+Original plan (for historical reference — not what was actually built):
 Add `GMAIL_SA_PATH=./gmail-sa.json` to `.env`. Add this loop:
 ```
 every 2 min:
@@ -538,7 +576,10 @@ every 2 min:
 
 To send with no human review, set config `auto_send=true` — then `wk-insert-draft` writes new drafts as `approved` directly and they send on the next tick. No code change.
 
-## 2.4 — Add the reply poller (needs the readonly scope)
+## 2.4 — Add the reply poller (needs the readonly scope) — STILL NOT BUILT (2026-07-13)
+Confirmed still blocked: `gmail.readonly` has not been added to the domain-wide delegation
+scopes, and none of the code below exists yet. `bounced`/`replied` statuses exist in the schema
+but nothing sets them.
 ```
 store lastHistoryId (in config or a small table)
 every 5 min:
@@ -554,10 +595,21 @@ every 5 min:
 `history.list` returns only what changed since the checkpoint, so this scales without scanning the mailbox. At high volume later, swap the poll for Gmail `users.watch` + Pub/Sub push (same match-and-flip handler, different trigger).
 
 ## 2.5 — Phase 2 test order
-1. `node send-test.js you@you.com` → email arrives.
-2. In the database, manually set an existing draft's email row to `status='approved'` (with a contact whose `email_status='verified'` and email = your own). Within 2 min → real email arrives. Sending proven.
-3. From the dashboard, click Send on a draft → it flips to `approved` → sends. Full path proven.
-4. Reply to a sent email from another account → within 5 min the email row flips to `replied` and a notification appears.
+Original plan (steps 1-2 not applicable — no `send-test.js`, no 2-min loop, since sending is
+Edge-Function+trigger based instead — see §2.3):
+1. ~~`node send-test.js you@you.com` → email arrives.~~ N/A.
+2. ~~Manually set an existing draft's email row to `status='approved'` ... within 2 min~~. What
+   was actually done instead: set an `emails` row to `status='approved'` directly in the SQL
+   editor (contact `email_status='verified'`, `email` = a real inbox the tester controlled) →
+   trigger fired within ~1s (async via `pg_net`, not a 2-min poll) → real email arrived with a
+   real Gmail `message_id`/`threadId`. Also separately verified the `AFTER INSERT` path (§2.3)
+   with a disposable throwaway contact/email row (deleted after) to confirm auto_send-style
+   inserts reach `wk-send-email` too.
+3. From the dashboard, click "Send Now" on a draft (with a chosen sender from the dropdown) →
+   flips to `approved` → sends for real. **Done and confirmed** (2026-07-13) — sent
+   successfully as both `saransh@envo.club` and `info@envo.club`.
+4. Reply to a sent email from another account → within 5 min the email row flips to `replied`
+   and a notification appears. **Not testable yet** — §2.4 (reply poller) doesn't exist.
 
 ---
 
@@ -572,8 +624,10 @@ const { data } = await supabase
   .eq("client_id", WORKENVO_ID)
   .order("created_at", { ascending: false });
 
-// the Send button (Phase 2)
-await supabase.from("emails").update({ status: "approved" }).eq("id", emailId);
+// the Send button (Phase 2) — done, plus an optional per-email sender override
+await supabase.from("emails")
+  .update({ status: "approved", send_from: chosenSenderEmail ?? null })
+  .eq("id", emailId);
 
 // notifications
 const { data: notifs } = await supabase
@@ -592,7 +646,9 @@ Phone reveal is a separate frontend route you own: on click, it looks up the num
 |---|---|
 | Emails per day | `config` row `daily_quota` |
 | Send times / spacing | `config` row `send_window` |
-| Send without review (Phase 2) | `config` row `auto_send` → `true` |
+| Send without review (Phase 2) | `config` row `auto_send` → `true` (dashboard toggle) |
+| Default sender for auto-send | `config` row `sender_email` (dashboard dropdown, only shown when auto_send is on) |
+| Add/remove choosable sender addresses | `config` row `sender_options` (Studio only, not dashboard) |
 | Pause everything | `config` row `paused` → `true` |
 | ICP / voice / product / skill | edit the file in the `workenvo-skill` bucket |
 | Apollo key | `supabase secrets set APOLLO_API_KEY=...` |

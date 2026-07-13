@@ -41,7 +41,7 @@ export default function TopBar() {
         {showBackLink && (
           <Link
             href="/"
-            className="shrink-0 text-ink-muted transition-colors hover:text-ink lg:hidden"
+            className="shrink-0 text-ink-muted transition-colors hover:text-ink active:opacity-60 lg:hidden"
             aria-label="Back to command center"
           >
             ←
@@ -50,7 +50,7 @@ export default function TopBar() {
         <span className="flex min-w-0 items-baseline gap-1.5">
           <Link
             href="/"
-            className="hidden shrink-0 text-ink-muted transition-colors hover:text-ink sm:inline"
+            className="hidden shrink-0 text-ink-muted transition-colors hover:text-ink active:opacity-60 sm:inline"
           >
             {brandName}
           </Link>
@@ -72,7 +72,7 @@ export default function TopBar() {
           <button
             type="button"
             onClick={handleSignOut}
-            className="rounded-full border border-border bg-surface-raised px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:text-ink"
+            className="rounded-full border border-border bg-surface-raised px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:text-ink active:scale-[0.97]"
           >
             Sign out
           </button>

@@ -23,6 +23,16 @@
   --danger-dim: oklch(0.7 0.16 25 / 12%);
   --shadow-panel: 0 2px 5px oklch(0 0 0 / 35%), 0 10px 28px -14px oklch(0 0 0 / 60%);
   --shadow-panel-sm: 0 1px 3px oklch(0 0 0 / 30%);
+  --accent-select: oklch(0.62 0.19 258 / 32%);
+
+  /* Semantic z-index scale — never an arbitrary number. */
+  --z-dropdown: 10;
+  --z-sticky: 20;
+  --z-modal-backdrop: 30;
+  --z-modal: 40;
+  --z-toast: 50;
+  --z-tooltip: 60;
+  --z-context-menu: 70;
 }
 
 @theme inline {
@@ -45,6 +55,14 @@
   --color-danger: var(--danger);
   --color-danger-dim: var(--danger-dim);
   --font-sans: var(--font-inter);
+
+  --z-index-dropdown: var(--z-dropdown);
+  --z-index-sticky: var(--z-sticky);
+  --z-index-modal-backdrop: var(--z-modal-backdrop);
+  --z-index-modal: var(--z-modal);
+  --z-index-toast: var(--z-toast);
+  --z-index-tooltip: var(--z-tooltip);
+  --z-index-context-menu: var(--z-context-menu);
 }
 
 html {
@@ -60,6 +78,43 @@ body {
     ),
     var(--bg);
   color: var(--ink);
+  /* Native macOS apps don't let you drag-select their own chrome — only
+     genuine content is selectable, opted back in per-element with `select-text`. */
+  user-select: none;
+  /* Safari's two-finger swipe-back gesture is a browser tell; there's no
+     horizontal navigation here to lose. */
+  overscroll-behavior-x: none;
+}
+
+input,
+textarea,
+select {
+  user-select: text;
+}
+
+/* macOS never shows a hand cursor for its own controls — that's a web
+   convention (browsers default <a> to it). Buttons already default to an
+   arrow cursor in every engine, so this only needs to correct anchors. */
+a,
+button,
+[role="button"] {
+  cursor: default;
+}
+
+::selection {
+  background: var(--accent-select);
+  color: var(--ink);
+}
+
+@keyframes context-menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 @keyframes agent-breathe {

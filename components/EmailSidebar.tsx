@@ -43,7 +43,7 @@ function StatusFilterBar({ activeStatus }: { activeStatus: ProspectStatus | null
     <div className="flex flex-wrap gap-1.5 border-b border-border px-4 py-3">
       <Link
         href={filterHref(null)}
-        className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+        className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors active:scale-[0.96] ${
           activeStatus === null
             ? "border-accent/30 bg-accent-dim text-accent"
             : "border-transparent text-ink-muted hover:bg-surface-raised hover:text-ink"
@@ -57,7 +57,7 @@ function StatusFilterBar({ activeStatus }: { activeStatus: ProspectStatus | null
           <Link
             key={f.value}
             href={filterHref(f.value)}
-            className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+            className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors active:scale-[0.96] ${
               isActive
                 ? "border-accent/30 bg-accent-dim text-accent"
                 : "border-transparent text-ink-muted hover:bg-surface-raised hover:text-ink"
@@ -119,7 +119,7 @@ function EmailSidebarContent() {
             <button
               type="button"
               onClick={() => toggle(daysAgo)}
-              className="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-xs font-medium text-ink-muted transition-colors hover:text-ink"
+              className="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-xs font-medium text-ink-muted transition-colors hover:text-ink active:scale-[0.99]"
             >
               <span className="flex items-center gap-2">
                 <span aria-hidden>{isCollapsed ? "▸" : "▾"}</span>
@@ -141,7 +141,7 @@ function EmailSidebarContent() {
                       <Link
                         href={`/emails/${prospect.id}${queryString}`}
                         aria-current={isSelected ? "page" : undefined}
-                        className={`flex w-full flex-col gap-2 rounded-lg px-3 py-3 text-left transition-colors ${
+                        className={`flex w-full flex-col gap-2 rounded-lg px-3 py-3 text-left transition-colors active:scale-[0.99] ${
                           isSelected ? "bg-accent-strong" : "hover:bg-surface-raised"
                         }`}
                       >

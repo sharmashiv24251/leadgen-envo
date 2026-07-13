@@ -3,9 +3,12 @@
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Chip from "@/components/Chip";
+import { useContextMenu } from "@/components/ContextMenu";
 import CopyBadge from "@/components/CopyBadge";
 import { PhoneIcon } from "@/components/icons";
+import Tooltip from "@/components/Tooltip";
 import { getAccount } from "@/lib/auth";
+import { copySelectionOr } from "@/lib/clipboard";
 import type { Prospect } from "@/lib/data";
 import {
   approveEmail,
@@ -44,6 +47,7 @@ export default function EmailDetail({
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const cancelledRef = useRef(false);
+  const showContextMenu = useContextMenu();
 
   useLayoutEffect(() => {
     setCanEdit(getAccount() === "workenvo");
@@ -146,9 +150,22 @@ export default function EmailDetail({
           Back to list
         </Link>
 
-        <div className="rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-panel-sm)]">
+        <div
+          className="rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-panel-sm)]"
+          onContextMenu={(e) =>
+            showContextMenu(e, [
+              {
+                label: "Copy",
+                onSelect: () =>
+                  copySelectionOr(
+                    `${prospect.name}\n${prospect.title} · ${prospect.company}\n${prospect.location}`
+                  ),
+              },
+            ])
+          }
+        >
           <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
+            <div className="select-text">
               <h1 className="text-lg font-semibold text-ink">{prospect.name}</h1>
               <p className="mt-1 text-sm text-ink-muted">
                 {prospect.title} · {prospect.company}
@@ -167,20 +184,28 @@ export default function EmailDetail({
               <CopyBadge value={prospect.email} tone="email" />
               <div className="flex items-center gap-1.5">
                 <CopyBadge value={prospect.phone} tone="phone" />
-                <a
-                  href={toTelHref(prospect.phone)}
-                  title={`Call ${prospect.phone}`}
-                  className="inline-flex items-center justify-center rounded-full border border-pending/30 bg-pending-dim p-1.5 text-pending transition-colors hover:bg-pending/20"
-                >
-                  <PhoneIcon />
-                </a>
+                <Tooltip label={`Call ${prospect.phone}`}>
+                  <a
+                    href={toTelHref(prospect.phone)}
+                    className="inline-flex items-center justify-center rounded-full border border-pending/30 bg-pending-dim p-1.5 text-pending transition-colors hover:bg-pending/20 active:scale-[0.92]"
+                  >
+                    <PhoneIcon />
+                  </a>
+                </Tooltip>
               </div>
             </div>
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-          <div className="rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-panel-sm)]">
+          <div
+            className="rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-panel-sm)]"
+            onContextMenu={(e) =>
+              showContextMenu(e, [
+                { label: "Copy", onSelect: () => copySelectionOr(prospect.intel.join("\n\n")) },
+              ])
+            }
+          >
             <h2 className="mb-4 text-sm font-medium text-ink">
               Why this angle
             </h2>
@@ -193,7 +218,7 @@ export default function EmailDetail({
                   >
                     {i + 1}
                   </span>
-                  <span className="text-sm leading-relaxed text-ink">
+                  <span className="select-text text-sm leading-relaxed text-ink">
                     {point}
                   </span>
                 </li>
@@ -211,7 +236,7 @@ export default function EmailDetail({
                   <button
                     type="button"
                     onClick={handleEditStart}
-                    className="rounded-full border border-border bg-surface-raised px-4 py-2 text-xs font-medium text-ink-muted transition-colors hover:text-ink"
+                    className="rounded-full border border-border bg-surface-raised px-4 py-2 text-xs font-medium text-ink-muted transition-colors hover:text-ink active:scale-[0.97]"
                   >
                     Edit
                   </button>
@@ -222,7 +247,7 @@ export default function EmailDetail({
                       type="button"
                       onClick={handleCancel}
                       disabled={saving}
-                      className="rounded-full border border-border bg-surface-raised px-4 py-2 text-xs font-medium text-ink-muted transition-colors hover:text-ink disabled:opacity-50"
+                      className="rounded-full border border-border bg-surface-raised px-4 py-2 text-xs font-medium text-ink-muted transition-colors hover:text-ink disabled:opacity-50 active:scale-[0.97]"
                     >
                       Cancel
                     </button>
@@ -230,7 +255,7 @@ export default function EmailDetail({
                       type="button"
                       onClick={handleSave}
                       disabled={saving}
-                      className="rounded-full bg-accent-strong px-4 py-2 text-xs font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-50"
+                      className="rounded-full bg-accent-strong px-4 py-2 text-xs font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-50 active:scale-[0.97]"
                     >
                       {saving ? "Saving…" : "Save"}
                     </button>
@@ -256,7 +281,7 @@ export default function EmailDetail({
                       type="button"
                       onClick={handleApprove}
                       disabled={isEditing || sending}
-                      className="rounded-full bg-accent-strong px-4 py-2 text-xs font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-50"
+                      className="rounded-full bg-accent-strong px-4 py-2 text-xs font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-50 active:scale-[0.97]"
                     >
                       {sending ? "Sending…" : "Send Now"}
                     </button>
@@ -288,7 +313,12 @@ export default function EmailDetail({
                   className="w-full rounded-lg border border-accent/40 bg-bg px-3 py-2 text-sm text-ink outline-none focus:border-accent"
                 />
               ) : (
-                <div className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-ink">
+                <div
+                  className="select-text rounded-lg border border-border bg-bg px-3 py-2 text-sm text-ink"
+                  onContextMenu={(e) =>
+                    showContextMenu(e, [{ label: "Copy", onSelect: () => copySelectionOr(subject) }])
+                  }
+                >
                   {subject}
                 </div>
               )}
@@ -306,7 +336,12 @@ export default function EmailDetail({
                   className="w-full max-w-[70ch] resize-y rounded-lg border border-accent/40 bg-bg px-3 py-2 text-sm leading-relaxed text-ink outline-none focus:border-accent"
                 />
               ) : (
-                <p className="max-w-[70ch] whitespace-pre-wrap text-sm leading-relaxed text-ink">
+                <p
+                  className="select-text max-w-[70ch] whitespace-pre-wrap text-sm leading-relaxed text-ink"
+                  onContextMenu={(e) =>
+                    showContextMenu(e, [{ label: "Copy", onSelect: () => copySelectionOr(body) }])
+                  }
+                >
                   {body}
                 </p>
               )}
@@ -322,7 +357,14 @@ export default function EmailDetail({
               </h2>
               <Chip tone="success">Responded</Chip>
             </div>
-            <p className="max-w-[70ch] whitespace-pre-wrap text-sm leading-relaxed text-ink">
+            <p
+              className="select-text max-w-[70ch] whitespace-pre-wrap text-sm leading-relaxed text-ink"
+              onContextMenu={(e) =>
+                showContextMenu(e, [
+                  { label: "Copy", onSelect: () => copySelectionOr(prospect.response ?? "") },
+                ])
+              }
+            >
               {prospect.response}
             </p>
           </div>

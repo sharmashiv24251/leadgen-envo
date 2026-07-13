@@ -64,19 +64,23 @@ radius + fill contrast + shadow together create elevation, not borders alone.
 
 ## Layout
 
-- Persistent **left sidebar** (`lg:` and up only; hidden on mobile), `--surface`
-  fill: brand name + a green "System active" pulse at top, then real app
-  navigation (Command Center, Outreach Feed) below — solid blue pill for the
-  active item.
-- **Header bar** to the right of the sidebar (not full browser width): a small
-  breadcrumb (`Brand / Section`) on the left, live clock + sign-out on the
-  right. Repeats on every route; gives the app a sense of place the way a
-  native app's title bar / breadcrumb does.
-- Dashboard (`/`): stat grid (`auto-fit, minmax(200px, 1fr)`) → recent-activity
-  list → CTA link. Runs edge-to-edge in the content pane (no centered
-  max-width column — that read as a marketing webpage, not app chrome).
-- Emails (`/emails`): fixed-height three-zone layout below the header — inset,
-  rounded prospect rows in an independently-scrollable sidebar, remaining width
+- **Header bar** spans the full window width, above everything else (matches
+  how a real macOS app's toolbar sits above its sidebar, not beside it): brand
+  name (links back to Command Center) + breadcrumb section on the left, live
+  clock + sign-out on the right. Persists on every route.
+- **Command Center (`/`) is a standalone intro screen** — no persistent
+  sidebar here at all, full-width content: stat grid (`auto-fit,
+  minmax(200px, 1fr)`) → recent-activity list → CTA link into the outreach
+  feed. Runs edge-to-edge (no centered max-width column — that read as a
+  marketing webpage, not app chrome).
+- **The prospect list is the app's actual persistent shell**, scoped to
+  `/emails*` routes — not a generic nav sidebar. Desktop always docks it
+  beside the detail pane; mobile shows one pane at a time (list-only on the
+  bare `/emails` route, detail-only on `/emails/[id]`, matching how a native
+  mail client collapses on a small screen). Get back to Command Center via
+  the brand name in the header, same as clicking a logo to go home.
+- Emails detail view: fixed-height layout below the header — inset, rounded
+  prospect rows in an independently-scrollable list, remaining width
   independently-scrollable detail panel (contact strip, then 40/60
   research-brief / email split). No outer page scroll.
 
@@ -99,14 +103,67 @@ radius + fill contrast + shadow together create elevation, not borders alone.
   (DELIVERED/SENDING), `danger` (BOUNCED).
 - **Prospect row**: name + title/company + subject preview + status chip,
   inset with rounded corners inside the list (not full-bleed with hairline
-  dividers); selected state = solid `bg-accent` fill with white text at
-  descending opacity for hierarchy (name full white, subtext ~75%, subject
-  ~60%).
+  dividers); selected state = solid `bg-accent-strong` fill with white text at
+  descending opacity for hierarchy (name 100%, subtext 85%, subject 72% —
+  tuned so every tier still clears WCAG AA 4.5:1 against the fill).
 - **Research brief bullet**: numbered marker in an accent-tinted pill circle +
   supporting text, weighted equal to or heavier than a plain list item.
-- **Primary button**: pill-shaped, solid `--accent` (blue) fill, white text —
+- **Primary button**: pill-shaped, solid `--accent-strong` fill, white text —
   reserved for the one true primary action per screen (Run outreach, Save,
-  Send Now).
+  Send Now, Authenticate). Plain `--accent` is for links/focus rings/small
+  accent tints only — it's not dark enough for white text at 4.5:1, which is
+  why solid-fill buttons and the selected prospect row both use the `-strong`
+  variant instead.
 - **Secondary button**: pill-shaped, `--surface-raised` fill, `--border`
   outline, muted text — matches the neutral gray capsule buttons macOS itself
   uses for non-primary actions (Cancel, Edit, Sign out).
+
+## Native App Feel
+
+The product's core visual bet: it should be indistinguishable from a real
+macOS app running full-screen in a browser with its chrome hidden — not "a
+nice-looking webpage." That means removing every incidental signal that
+reveals it's a browser tab, not just getting the colors/shapes right.
+
+- **Cursor**: `a, button, [role="button"] { cursor: default }` globally.
+  macOS never shows a hand/pointer cursor for its own controls — that's a web
+  convention browsers apply to anchors by default. Buttons already default to
+  an arrow in every engine; this only needed to correct links.
+- **Text selection**: `body { user-select: none }` by default; `input`,
+  `textarea`, `select` opt back into `user-select: text` globally, and
+  specific real-content regions (prospect contact block, "Why this angle"
+  bullets, email subject/body view mode, reply-received text) get an explicit
+  `select-text` class. Chrome (nav, labels, list rows, buttons) stays
+  non-selectable — a native app never lets you drag-select its own UI, only
+  genuine content, the same way Mail.app's message list isn't selectable but
+  its reading pane is.
+- **`::selection`**: tied to `--accent-select` (a 32%-alpha accent tint), not
+  each browser's own default selection blue.
+- **Tooltips**: never the native `title=` attribute (triggers the browser/OS's
+  own delayed system tooltip, styled nothing like the app). Always
+  `components/Tooltip.tsx` — a small hover-triggered `--surface-raised` pill
+  matching the rest of the chrome.
+- **Right-click**: the browser's own context menu (Back/Forward/Reload/
+  Inspect) is suppressed everywhere via `components/ContextMenu.tsx`'s global
+  `contextmenu` listener — except inside editable fields (`input`, `textarea`,
+  `[contenteditable]`), where the OS's native Cut/Copy/Paste menu is correct
+  native behavior and is deliberately left alone. Specific content regions
+  (copy badges, contact info, email subject/body, research bullets, replies)
+  opt into a real custom menu via `useContextMenu()` instead of losing
+  right-click entirely.
+- **Press feedback**: every button and interactive row has an `active:`
+  state (`scale-[0.97]`-ish, or `opacity` for plain text links) — native
+  controls compress/darken instantly on mouse-down; `hover:` alone reads as
+  "webpage with hover effects," not "app with buttons."
+- **Spring motion**: the auto-send toggle's knob animates via `motion/react`
+  spring physics (`stiffness: 500, damping: 30`), not a flat CSS `ease` —
+  the small overshoot-then-settle is what makes a switch feel like a native
+  control instead of a CSS transition.
+- **Gesture/shortcut suppression**: `overscroll-behavior-x: none` on `body`
+  stops Safari's two-finger swipe-back gesture (there's no horizontal
+  navigation to lose); a best-effort `Cmd/Ctrl+F` intercept tries to stop the
+  browser's native find bar, though this isn't reliable across every browser.
+- **Deliberately left alone**: scrollbars (no custom CSS exists, so macOS's
+  real native overlay scrollbar renders as-is) and trackpad rubber-band
+  overscroll bounce (untouched, so it already behaves natively) — both were
+  already correct and touching them would only risk making them worse.

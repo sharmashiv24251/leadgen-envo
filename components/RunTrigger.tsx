@@ -49,7 +49,7 @@ export default function RunTrigger() {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="rounded-full bg-accent-strong px-4 py-2 text-sm font-medium text-accent-ink transition-opacity hover:opacity-90"
+          className="rounded-full bg-accent-strong px-4 py-2 text-sm font-medium text-accent-ink transition-opacity hover:opacity-90 active:scale-[0.97]"
         >
           Run outreach ▸
         </button>
@@ -73,14 +73,14 @@ export default function RunTrigger() {
             type="button"
             onClick={handleStart}
             disabled={submitting}
-            className="rounded-full bg-accent-strong px-3 py-1.5 text-xs font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="rounded-full bg-accent-strong px-3 py-1.5 text-xs font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-50 active:scale-[0.97]"
           >
             {submitting ? "Starting…" : "Start"}
           </button>
           <button
             type="button"
             onClick={() => setOpen(false)}
-            className="rounded-full px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:text-ink"
+            className="rounded-full px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:text-ink active:scale-[0.97]"
           >
             Cancel
           </button>

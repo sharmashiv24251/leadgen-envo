@@ -189,7 +189,7 @@ export default function DashboardView() {
             <Link
               key={event.id}
               href={`/emails/${event.prospectId}`}
-              className={`flex items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-raised ${i !== 0 ? "border-t border-border" : ""}`}
+              className={`flex items-center gap-3 px-4 py-3 transition-colors active:scale-[0.99] hover:bg-surface-raised ${i !== 0 ? "border-t border-border" : ""}`}
             >
               <span
                 className={`h-1.5 w-1.5 shrink-0 rounded-full ${toneDotClasses[event.tone]}`}
@@ -207,7 +207,7 @@ export default function DashboardView() {
       <div className="mt-8">
         <Link
           href="/emails"
-          className="inline-flex items-center gap-2 text-sm font-medium text-accent transition-colors hover:text-ink"
+          className="inline-flex items-center gap-2 text-sm font-medium text-accent transition-colors hover:text-ink active:opacity-70"
         >
           View outreach feed →
         </Link>

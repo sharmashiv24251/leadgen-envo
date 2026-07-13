@@ -1,6 +1,8 @@
 "use client";
 
+import { motion } from "motion/react";
 import { useEffect, useState } from "react";
+import Tooltip from "@/components/Tooltip";
 import {
   fetchAutoSend,
   fetchDefaultSender,
@@ -9,6 +11,8 @@ import {
   setDefaultSender,
   type SenderOption,
 } from "@/lib/workenvoData";
+
+const KNOB_SPRING = { type: "spring", stiffness: 500, damping: 30 } as const;
 
 export default function AutoSendToggle() {
   const [autoSend, setLocalAutoSend] = useState<boolean | null>(null);
@@ -57,46 +61,50 @@ export default function AutoSendToggle() {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <button
-        type="button"
-        onClick={toggle}
-        disabled={saving}
-        title={
+      <Tooltip
+        label={
           autoSend
             ? "New drafts send automatically. Click to require manual review."
             : "New drafts wait for review. Click to send automatically instead."
         }
-        className="flex items-center gap-2 rounded-full border border-border bg-surface-raised px-3.5 py-2 text-xs font-medium text-ink-muted transition-colors hover:text-ink disabled:opacity-50"
       >
-        <span
-          className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors ${
-            autoSend ? "bg-accent" : "bg-border"
-          }`}
-          aria-hidden
+        <button
+          type="button"
+          onClick={toggle}
+          disabled={saving}
+          className="flex items-center gap-2 rounded-full border border-border bg-surface-raised px-3.5 py-2 text-xs font-medium text-ink-muted transition-colors hover:text-ink disabled:opacity-50 active:scale-[0.97]"
         >
           <span
-            className={`inline-block h-3 w-3 transform rounded-full bg-surface transition-transform ${
-              autoSend ? "translate-x-3.5" : "translate-x-0.5"
+            className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors ${
+              autoSend ? "bg-accent" : "bg-border"
             }`}
-          />
-        </span>
-        Auto-send {autoSend ? "on" : "off"}
-      </button>
+            aria-hidden
+          >
+            <motion.span
+              className="inline-block h-3 w-3 rounded-full bg-surface"
+              animate={{ x: autoSend ? 14 : 2 }}
+              transition={KNOB_SPRING}
+            />
+          </span>
+          Auto-send {autoSend ? "on" : "off"}
+        </button>
+      </Tooltip>
 
       {autoSend && senderOptions.length > 0 && (
-        <select
-          value={defaultSender}
-          onChange={(e) => handleSenderChange(e.target.value)}
-          disabled={savingSender}
-          title="New drafts send automatically from this address"
-          className="rounded-full border border-border bg-surface-raised px-3 py-2 text-xs text-ink-muted outline-none disabled:opacity-50"
-        >
-          {senderOptions.map((opt) => (
-            <option key={opt.email} value={opt.email}>
-              from: {opt.name} ({opt.email})
-            </option>
-          ))}
-        </select>
+        <Tooltip label="New drafts send automatically from this address">
+          <select
+            value={defaultSender}
+            onChange={(e) => handleSenderChange(e.target.value)}
+            disabled={savingSender}
+            className="rounded-full border border-border bg-surface-raised px-3 py-2 text-xs text-ink-muted outline-none disabled:opacity-50"
+          >
+            {senderOptions.map((opt) => (
+              <option key={opt.email} value={opt.email}>
+                from: {opt.name} ({opt.email})
+              </option>
+            ))}
+          </select>
+        </Tooltip>
       )}
     </div>
   );

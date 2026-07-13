@@ -43,8 +43,8 @@ type EmailRow = {
 // implemented anywhere yet (see backend/devinstruction.md); the slot exists regardless.
 const STATUS_MAP: Record<string, ProspectStatus> = {
   draft: "DRAFTED",
-  approved: "DRAFTED",
-  sending: "SENT",
+  approved: "SENDING",
+  sending: "SENDING",
   sent: "DELIVERED",
   replied: "RESPONDED",
   bounced: "BOUNCED",
@@ -153,6 +153,97 @@ export async function updateEmailDraft(
     .update(updates)
     .eq("contact_id", contactId)
     .eq("client_id", WORKENVO_CLIENT_ID);
+  if (error) throw new Error(error.message);
+}
+
+// Flips the email to 'approved' — a DB trigger (see SEND-PLAN.md) fires the
+// wk-send-email Edge Function the instant this transition happens.
+export async function approveEmail(contactId: string, sendFrom?: string): Promise<void> {
+  const { error } = await supabaseBrowser
+    .from("emails")
+    .update({ status: "approved", send_from: sendFrom ?? null })
+    .eq("contact_id", contactId)
+    .eq("client_id", WORKENVO_CLIENT_ID);
+  if (error) throw new Error(error.message);
+}
+
+// Polls a single email's status by contact id — used right after approveEmail()
+// to reflect the async send outcome (sent/failed) without a full page refetch.
+export async function fetchEmailStatus(contactId: string): Promise<string | null> {
+  const { data, error } = await supabaseBrowser
+    .from("emails")
+    .select("status")
+    .eq("contact_id", contactId)
+    .eq("client_id", WORKENVO_CLIENT_ID)
+    .maybeSingle();
+  if (error) {
+    console.error("[workenvoData] fetchEmailStatus failed:", error.message);
+    return null;
+  }
+  return data?.status ?? null;
+}
+
+export type SenderOption = { email: string; name: string };
+
+export async function fetchSenderOptions(): Promise<SenderOption[]> {
+  const { data, error } = await supabaseBrowser
+    .from("config")
+    .select("value")
+    .eq("client_id", WORKENVO_CLIENT_ID)
+    .eq("key", "sender_options")
+    .maybeSingle();
+  if (error) {
+    console.error("[workenvoData] fetchSenderOptions failed:", error.message);
+    return [];
+  }
+  return (data?.value as SenderOption[] | undefined) ?? [];
+}
+
+export async function fetchAutoSend(): Promise<boolean> {
+  const { data, error } = await supabaseBrowser
+    .from("config")
+    .select("value")
+    .eq("client_id", WORKENVO_CLIENT_ID)
+    .eq("key", "auto_send")
+    .maybeSingle();
+  if (error) {
+    console.error("[workenvoData] fetchAutoSend failed:", error.message);
+    return false;
+  }
+  return data?.value === true;
+}
+
+export async function setAutoSend(value: boolean): Promise<void> {
+  const { error } = await supabaseBrowser
+    .from("config")
+    .update({ value })
+    .eq("client_id", WORKENVO_CLIENT_ID)
+    .eq("key", "auto_send");
+  if (error) throw new Error(error.message);
+}
+
+// The address auto-sent drafts go out from (wk-insert-draft never sets a
+// per-email send_from, so wk-send-email always falls back to this).
+export async function fetchDefaultSender(): Promise<string> {
+  const { data, error } = await supabaseBrowser
+    .from("config")
+    .select("value")
+    .eq("client_id", WORKENVO_CLIENT_ID)
+    .eq("key", "sender_email")
+    .maybeSingle();
+  if (error) {
+    console.error("[workenvoData] fetchDefaultSender failed:", error.message);
+    return "";
+  }
+  return (data?.value as string | undefined) ?? "";
+}
+
+export async function setDefaultSender(email: string): Promise<void> {
+  const { error } = await supabaseBrowser
+    .from("config")
+    .update({ value: email })
+    .eq("client_id", WORKENVO_CLIENT_ID)
+    .eq("key", "sender_email");
   if (error) throw new Error(error.message);
 }
 

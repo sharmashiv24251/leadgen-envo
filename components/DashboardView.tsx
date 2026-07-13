@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import AgentsBanner from "@/components/AgentsBanner";
+import AutoSendToggle from "@/components/AutoSendToggle";
 import RunTrigger from "@/components/RunTrigger";
 import { getAccount, isAuthenticated } from "@/lib/auth";
 import { type ActivityTone } from "@/lib/data";
@@ -73,7 +74,12 @@ export default function DashboardView() {
             Live outreach performance across the current campaign.
           </p>
         </div>
-        {isWorkenvo && <RunTrigger />}
+        {isWorkenvo && (
+          <div className="flex flex-wrap items-center gap-3">
+            <AutoSendToggle />
+            <RunTrigger />
+          </div>
+        )}
       </div>
 
       {loading && (
@@ -84,15 +90,15 @@ export default function DashboardView() {
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4">
         <StatPanel
-          label="Reply Rate"
-          value={`${dashboardStats.replyRatePct.toFixed(1)}%`}
+          label="Total Leads Found"
+          value={dashboardStats.totalDrafted.toLocaleString("en-US")}
           tone="accent"
           emphasis="hero"
         />
         <StatPanel
-          label="Bounce Rate"
-          value={`${dashboardStats.bounceRatePct.toFixed(1)}%`}
-          tone={dashboardStats.bounceRatePct < 3 ? "accent" : "default"}
+          label="Reply Rate"
+          value={`${dashboardStats.replyRatePct.toFixed(1)}%`}
+          tone="accent"
           emphasis="quiet"
         />
         <StatPanel

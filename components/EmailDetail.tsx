@@ -1,27 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Chip from "@/components/Chip";
 import CopyBadge from "@/components/CopyBadge";
 import { PhoneIcon } from "@/components/icons";
 import { getAccount } from "@/lib/auth";
 import type { Prospect } from "@/lib/data";
-import { updateEmailDraft } from "@/lib/workenvoData";
+import {
+  approveEmail,
+  fetchEmailStatus,
+  fetchSenderOptions,
+  updateEmailDraft,
+  type SenderOption,
+} from "@/lib/workenvoData";
 
-function buildGmailComposeUrl(to: string, subject: string, body: string): string {
-  const params = [
-    ["view", "cm"],
-    ["fs", "1"],
-    ["to", to],
-    ["su", subject],
-    ["body", body],
-  ]
-    .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
-    .join("&");
-
-  return `https://mail.google.com/mail/?${params}`;
-}
+const TERMINAL_SEND_STATUSES = new Set(["sent", "failed", "bounced"]);
+const POLL_INTERVAL_MS = 2000;
+const POLL_TIMEOUT_MS = 15000;
 
 function toTelHref(phone: string): string {
   return `tel:${phone.replace(/[^\d+]/g, "")}`;
@@ -43,6 +39,12 @@ export default function EmailDetail({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  const [senderOptions, setSenderOptions] = useState<SenderOption[]>([]);
+  const [selectedSender, setSelectedSender] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const cancelledRef = useRef(false);
+
   useLayoutEffect(() => {
     setCanEdit(getAccount() === "workenvo");
   }, []);
@@ -52,11 +54,57 @@ export default function EmailDetail({
     setBody(prospect.body);
     setIsEditing(false);
     setSaveError(null);
+    setSending(false);
+    setSendError(null);
   }, [prospect.id, prospect.subject, prospect.body]);
 
-  function handleSend() {
-    const url = buildGmailComposeUrl(prospect.email, subject, body);
-    window.open(url, "_blank", "noopener,noreferrer");
+  useEffect(() => {
+    if (!canEdit) return;
+    fetchSenderOptions().then((opts) => {
+      setSenderOptions(opts);
+      setSelectedSender((prev) => prev || opts[0]?.email || "");
+    });
+  }, [canEdit]);
+
+  useEffect(() => {
+    cancelledRef.current = false;
+    return () => {
+      cancelledRef.current = true;
+    };
+  }, [prospect.id]);
+
+  async function handleApprove() {
+    setSending(true);
+    setSendError(null);
+    try {
+      await approveEmail(prospect.id, selectedSender || undefined);
+      onSaved?.();
+
+      const start = Date.now();
+      const poll = async () => {
+        if (cancelledRef.current) return;
+        const currentStatus = await fetchEmailStatus(prospect.id);
+        if (cancelledRef.current) return;
+        if (currentStatus && TERMINAL_SEND_STATUSES.has(currentStatus)) {
+          setSending(false);
+          if (currentStatus === "failed") {
+            setSendError("Send failed — check the notifications panel for details, then try again.");
+          }
+          onSaved?.();
+          return;
+        }
+        if (Date.now() - start > POLL_TIMEOUT_MS) {
+          setSending(false);
+          onSaved?.();
+          return;
+        }
+        setTimeout(poll, POLL_INTERVAL_MS);
+      };
+      setTimeout(poll, POLL_INTERVAL_MS);
+    } catch (err) {
+      setSending(false);
+      setSendError(err instanceof Error ? err.message : "Failed to send.");
+    }
   }
 
   function handleEditStart() {
@@ -188,20 +236,43 @@ export default function EmailDetail({
                     </button>
                   </>
                 )}
-                <button
-                  type="button"
-                  onClick={handleSend}
-                  disabled={isEditing}
-                  className="rounded-lg bg-accent px-4 py-2 text-xs font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-50"
-                >
-                  Send via Gmail
-                </button>
+                {canEdit && prospect.status === "DRAFTED" && (
+                  <>
+                    {senderOptions.length > 0 && (
+                      <select
+                        value={selectedSender}
+                        onChange={(e) => setSelectedSender(e.target.value)}
+                        disabled={isEditing || sending}
+                        className="rounded-lg border border-border bg-bg px-2 py-2 text-xs text-ink outline-none disabled:opacity-50"
+                      >
+                        {senderOptions.map((opt) => (
+                          <option key={opt.email} value={opt.email}>
+                            {opt.name} ({opt.email})
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleApprove}
+                      disabled={isEditing || sending}
+                      className="rounded-lg bg-accent px-4 py-2 text-xs font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-50"
+                    >
+                      {sending ? "Sending…" : "Send Now"}
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 
             {saveError && (
               <p className="mb-4 rounded-lg border border-danger/30 bg-danger-dim px-3 py-2 text-xs text-danger">
                 {saveError}
+              </p>
+            )}
+            {sendError && (
+              <p className="mb-4 rounded-lg border border-danger/30 bg-danger-dim px-3 py-2 text-xs text-danger">
+                {sendError}
               </p>
             )}
 

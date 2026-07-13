@@ -10,6 +10,7 @@ import { useProspects } from "@/lib/useAccountData";
 
 const STATUS_FILTERS: { value: ProspectStatus; label: string }[] = [
   { value: "DRAFTED", label: "Drafted" },
+  { value: "SENDING", label: "Sending" },
   { value: "DELIVERED", label: "Delivered" },
   { value: "BOUNCED", label: "Bounced" },
   { value: "RESPONDED", label: "Responded" },

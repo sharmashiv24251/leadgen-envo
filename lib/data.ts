@@ -17,7 +17,7 @@ export interface ActivityEvent {
 
 export type ProspectStatus =
   | "DRAFTED"
-  | "SENT"
+  | "SENDING"
   | "DELIVERED"
   | "BOUNCED"
   | "RESPONDED";
@@ -489,8 +489,11 @@ Niall`,
   },
 ];
 
-const sentStatuses: ProspectStatus[] = ["SENT", "DELIVERED", "BOUNCED", "RESPONDED"];
-const deliveredStatuses: ProspectStatus[] = ["SENT", "DELIVERED", "RESPONDED"];
+// SENDING is deliberately excluded from both — it means the send is still in
+// flight (approved/sending backend status), not yet actually dispatched, so it
+// must not count toward "Emails Delivered" or the bounce/reply-rate denominator.
+const sentStatuses: ProspectStatus[] = ["DELIVERED", "BOUNCED", "RESPONDED"];
+const deliveredStatuses: ProspectStatus[] = ["DELIVERED", "RESPONDED"];
 
 /** Pure aggregation so real (Supabase-backed) prospect lists can reuse the same math. */
 export function computeDashboardStats(list: Prospect[]): DashboardStats {

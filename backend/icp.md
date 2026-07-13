@@ -1,11 +1,11 @@
 # Workenvo ICP (v1 — edit this file to retarget; the VM re-reads it every run)
 
-The inflection gate is GONE. You are no longer required to find a company mid-restructure. Find a person who fits the profile below, at a company where you can find at least one true, recent, specific thing to open the email with. The hook is a conversational opener, not a qualifying event.
+Find a person who fits the profile below, at a company where you can find at least one true, recent, specific thing to open the email with. The hook is a conversational opener, not a qualifying event.
 
 ## Who (the company)
-- **Geography:** UK & Ireland. Prioritise Ireland.
-- **Size:** 30–300 employees. This is the band where people-risk is real but there's no big People-analytics function yet.
-- **Signals of life (nice to have, not gates):** actively hiring (a few open roles), recently funded, opened a new office, doubling headcount, posting about culture/scaling.
+- **Geography:** UK & Ireland.
+- **Size:** 50–500 employees. This is the band where people-risk is real but there's no big People-analytics function yet.
+- **Signals of life (nice to have, not gates):** actively hiring (a few open roles), recently funded, opened a new office, doubling headcount, posting about culture/scaling. Look especially on LinkedIn, Hacker News, TechCrunch, Reddit, etc.
 - **Sectors where retention pain bites:** healthcare & care providers, tech scale-ups, logistics & distribution, professional services, engineering/construction firms with long-tenure teams, multi-site operators.
 
 ## The person
@@ -29,6 +29,7 @@ Any ONE true, recent, specific thing:
 - A founder/exec post about hiring, culture, or scaling pains
 - A recently created first-ever People/HR role (they're building the function from zero — a perfect Workenvo moment)
 - A doubling or rapid headcount jump
+- A recent layoff or downsizing round — the angle becomes protecting and retaining the people who remain
 
 If you genuinely cannot find a single true specific hook for a prospect, skip them and find another. A generic opener ("saw you're growing") is worse than no email. But you do NOT need a dramatic structural inflection — a real hiring push or a new-office line is plenty.
 

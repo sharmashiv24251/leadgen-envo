@@ -26,7 +26,7 @@ UK & Ireland mid-market. Textbook buyer is HR leadership (CHRO, CPO, Head of Peo
 Land-and-expand. Starts free with one integration, a weekly Workforce Health Score, Top 3 Risks. Paid tiers add attrition/burnout risk, manager effectiveness, pulse surveys, sentiment. From ~€1/employee/month. No rip-and-replace.
 
 ## Credibility beats
-Supported by Enterprise Ireland and Dogpatch Labs. Piloting with a few forward-thinking organisations. One short sentence, do not oversell.
+Trusted by companies like Mercedes-Benz and Vodafone. Piloting with a few forward-thinking organisations. One short sentence, do not oversell.
 
 ## What Workenvo does NOT solve (discipline list — never imply you fix these)
 - Procurement, supply chain, equipment lead times
@@ -39,10 +39,10 @@ Supported by Enterprise Ireland and Dogpatch Labs. Piloting with a few forward-t
 - Sales, marketing, lead gen, CRM
 
 ## What Workenvo DOES solve (keep list)
+- (key selling point) Attrition risk for hard-to-replace people, surfaced while you can still act
 - Hiring fast while protecting the quality of teams you're building
 - Burnout on deadline-driven teams, caught before the crash
-- Attrition risk for hard-to-replace people, surfaced while you can still act
 - Manager risk: a corrosive or struggling manager spotted before the second resignation
-- Culture dilution during rapid scaling or post-acquisition integration
+- (for companies who recently fund-raised) Culture dilution during rapid scaling or post-acquisition integration
 - Visibility into team health across distributed, multi-site, or recently-doubled workforces
 - A board-ready, research-grounded read on people-risk

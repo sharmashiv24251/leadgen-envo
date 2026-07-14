@@ -85,7 +85,6 @@ function mapRowToProspect(row: EmailRow): Prospect {
     body: row.body,
     intel,
     status: STATUS_MAP[row.status] ?? "DRAFTED",
-    isDemo: false,
     response: row.status === "replied" ? row.reply_body ?? undefined : undefined,
   };
 }

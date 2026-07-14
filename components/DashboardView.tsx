@@ -7,7 +7,7 @@ import AgentsBanner from "@/components/AgentsBanner";
 import AutoSendToggle from "@/components/AutoSendToggle";
 import RunTrigger from "@/components/RunTrigger";
 import { ActivityRowSkeleton, StatPanelSkeleton } from "@/components/Skeleton";
-import { getAccount, isAuthenticated } from "@/lib/auth";
+import { isAuthenticated } from "@/lib/auth";
 import { type ActivityTone } from "@/lib/data";
 import { useDashboardData } from "@/lib/useAccountData";
 
@@ -206,10 +206,10 @@ function IcpHealthPanel({ pct, note }: { pct: number | null; note: string | null
 
 export default function DashboardView() {
   const { stats: dashboardStats, activity: activityFeed, loading } = useDashboardData();
-  const [isWorkenvo, setIsWorkenvo] = useState(false);
+  const [showControls, setShowControls] = useState(false);
 
   useEffect(() => {
-    setIsWorkenvo(isAuthenticated() && getAccount() === "workenvo");
+    setShowControls(isAuthenticated());
   }, []);
 
   return (
@@ -223,7 +223,7 @@ export default function DashboardView() {
             Live outreach performance across the current campaign.
           </p>
         </div>
-        {isWorkenvo && (
+        {showControls && (
           <div className="flex flex-wrap items-center gap-3">
             <AutoSendToggle />
             <RunTrigger />

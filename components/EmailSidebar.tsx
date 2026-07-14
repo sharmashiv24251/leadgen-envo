@@ -167,12 +167,6 @@ function EmailSidebarContent() {
                           className={`flex items-center gap-2 text-xs ${isSelected ? "text-accent-ink/72" : "text-ink-muted"}`}
                         >
                           <span className="truncate">{prospect.subject}</span>
-                          {prospect.isDemo && (
-                            <>
-                              <span aria-hidden>·</span>
-                              <span>Demo</span>
-                            </>
-                          )}
                         </div>
                       </Link>
                     </li>

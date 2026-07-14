@@ -8,11 +8,11 @@ import { useContextMenu } from "@/components/ContextMenu";
 import CopyBadge from "@/components/CopyBadge";
 import { PhoneIcon } from "@/components/icons";
 import Tooltip from "@/components/Tooltip";
-import { getAccount } from "@/lib/auth";
 import { copySelectionOr } from "@/lib/clipboard";
 import type { Prospect } from "@/lib/data";
+import { approveEmail, fetchEmailStatus, fetchSenderOptions, updateEmailDraft } from "@/lib/outreachApi";
 import { queryKeys } from "@/lib/queryKeys";
-import { approveEmail, fetchEmailStatus, fetchSenderOptions, updateEmailDraft } from "@/lib/workenvoData";
+import { useAccountMode } from "@/lib/useAccountData";
 
 const TERMINAL_SEND_STATUSES = new Set(["sent", "failed", "bounced"]);
 const POLL_INTERVAL_MS = 2000;
@@ -43,9 +43,11 @@ export default function EmailDetail({
   const [trackingContactId, setTrackingContactId] = useState<string | null>(null);
   const sendStartedAtRef = useRef(0);
   const showContextMenu = useContextMenu();
+  const account = useAccountMode();
+  const keys = queryKeys.forAccount(account);
 
   useLayoutEffect(() => {
-    setCanEdit(getAccount() === "workenvo");
+    setCanEdit(true);
   }, []);
 
   useLayoutEffect(() => {
@@ -58,7 +60,7 @@ export default function EmailDetail({
 
   // Same query key AutoSendToggle uses — one fetch serves both.
   const { data: senderOptions = [] } = useQuery({
-    queryKey: queryKeys.workenvo.senderOptions(),
+    queryKey: keys.senderOptions(),
     queryFn: fetchSenderOptions,
     enabled: canEdit,
   });
@@ -68,7 +70,7 @@ export default function EmailDetail({
   }, [senderOptions]);
 
   const statusQuery = useQuery({
-    queryKey: queryKeys.workenvo.emailStatus(prospect.id),
+    queryKey: keys.emailStatus(prospect.id),
     queryFn: () => fetchEmailStatus(prospect.id),
     enabled: trackingContactId === prospect.id,
     refetchInterval: POLL_INTERVAL_MS,
@@ -85,19 +87,19 @@ export default function EmailDetail({
     if (currentStatus === "failed") {
       setSendError("Send failed — check the notifications panel for details, then try again.");
     }
-    queryClient.invalidateQueries({ queryKey: queryKeys.workenvo.data() });
-  }, [statusQuery.data, trackingContactId, prospect.id, queryClient]);
+    queryClient.invalidateQueries({ queryKey: keys.data() });
+  }, [statusQuery.data, trackingContactId, prospect.id, queryClient, keys]);
 
   const approveMutation = useMutation<void, Error, void>({
     mutationFn: () => approveEmail(prospect.id, selectedSender || undefined),
     onSuccess: () => {
       setSendError(null);
-      queryClient.invalidateQueries({ queryKey: queryKeys.workenvo.data() });
+      queryClient.invalidateQueries({ queryKey: keys.data() });
       // Wipe any status cached from a previous send on this contact (e.g. a "failed" from
       // a prior attempt) — otherwise re-enabling the query below would hand the effect that
       // stale terminal value before the new attempt's real result exists, and it'd read the
       // old send's outcome as the new one's.
-      queryClient.removeQueries({ queryKey: queryKeys.workenvo.emailStatus(prospect.id) });
+      queryClient.removeQueries({ queryKey: keys.emailStatus(prospect.id) });
       sendStartedAtRef.current = Date.now();
       setTrackingContactId(prospect.id);
     },
@@ -110,7 +112,7 @@ export default function EmailDetail({
     mutationFn: () => updateEmailDraft(prospect.id, { subject, body }),
     onSuccess: () => {
       setIsEditing(false);
-      queryClient.invalidateQueries({ queryKey: queryKeys.workenvo.data() });
+      queryClient.invalidateQueries({ queryKey: keys.data() });
     },
   });
 
@@ -169,7 +171,6 @@ export default function EmailDetail({
             </div>
             <div className="flex flex-col items-end gap-2">
               <div className="flex items-center gap-2">
-                {prospect.isDemo && <Chip tone="neutral">Demo</Chip>}
                 <Chip tone={prospect.emailVerified ? "success" : "neutral"}>
                   {prospect.emailVerified ? "Verified" : "Unverified"}
                 </Chip>

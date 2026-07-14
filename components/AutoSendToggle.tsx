@@ -3,63 +3,66 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import Tooltip from "@/components/Tooltip";
-import { queryKeys } from "@/lib/queryKeys";
 import {
   fetchAutoSend,
   fetchDefaultSender,
   fetchSenderOptions,
   setAutoSend,
   setDefaultSender,
-} from "@/lib/workenvoData";
+} from "@/lib/outreachApi";
+import { queryKeys } from "@/lib/queryKeys";
+import { useAccountMode } from "@/lib/useAccountData";
 
 const KNOB_SPRING = { type: "spring", stiffness: 500, damping: 30 } as const;
 
 export default function AutoSendToggle() {
   const queryClient = useQueryClient();
+  const account = useAccountMode();
+  const keys = queryKeys.forAccount(account);
 
   const { data: autoSend } = useQuery({
-    queryKey: queryKeys.workenvo.autoSend(),
+    queryKey: keys.autoSend(),
     queryFn: fetchAutoSend,
   });
   // Same query key EmailDetail uses for its sender dropdown — one fetch serves both.
   const { data: senderOptions = [] } = useQuery({
-    queryKey: queryKeys.workenvo.senderOptions(),
+    queryKey: keys.senderOptions(),
     queryFn: fetchSenderOptions,
   });
   const { data: defaultSender = "" } = useQuery({
-    queryKey: queryKeys.workenvo.defaultSender(),
+    queryKey: keys.defaultSender(),
     queryFn: fetchDefaultSender,
   });
 
   const toggleMutation = useMutation<void, Error, boolean, { previous?: boolean }>({
     mutationFn: setAutoSend,
     onMutate: (next) => {
-      const previous = queryClient.getQueryData<boolean>(queryKeys.workenvo.autoSend());
-      queryClient.setQueryData(queryKeys.workenvo.autoSend(), next);
+      const previous = queryClient.getQueryData<boolean>(keys.autoSend());
+      queryClient.setQueryData(keys.autoSend(), next);
       return { previous };
     },
     onError: (err, _next, context) => {
       console.error("[AutoSendToggle] failed to save:", err);
-      queryClient.setQueryData(queryKeys.workenvo.autoSend(), context?.previous ?? false);
+      queryClient.setQueryData(keys.autoSend(), context?.previous ?? false);
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.workenvo.autoSend() });
+      queryClient.invalidateQueries({ queryKey: keys.autoSend() });
     },
   });
 
   const senderMutation = useMutation<void, Error, string, { previous?: string }>({
     mutationFn: setDefaultSender,
     onMutate: (email) => {
-      const previous = queryClient.getQueryData<string>(queryKeys.workenvo.defaultSender());
-      queryClient.setQueryData(queryKeys.workenvo.defaultSender(), email);
+      const previous = queryClient.getQueryData<string>(keys.defaultSender());
+      queryClient.setQueryData(keys.defaultSender(), email);
       return { previous };
     },
     onError: (err, _email, context) => {
       console.error("[AutoSendToggle] failed to save default sender:", err);
-      queryClient.setQueryData(queryKeys.workenvo.defaultSender(), context?.previous ?? "");
+      queryClient.setQueryData(keys.defaultSender(), context?.previous ?? "");
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.workenvo.defaultSender() });
+      queryClient.invalidateQueries({ queryKey: keys.defaultSender() });
     },
   });
 

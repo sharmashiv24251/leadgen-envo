@@ -41,7 +41,6 @@ export interface Prospect {
   body: string;
   intel: string[];
   status: ProspectStatus;
-  isDemo: boolean;
   response?: string;
 }
 
@@ -120,7 +119,6 @@ thehrcompany`,
       "Careers page shows a manual onboarding checklist, no HRIS integration mentioned.",
     ],
     status: "DELIVERED",
-    isDemo: true,
   },
   {
     id: "jonah-omeara",
@@ -151,7 +149,6 @@ thehrcompany`,
       "No structured interview-stage automation found in current stack.",
     ],
     status: "DELIVERED",
-    isDemo: true,
   },
   {
     id: "priya-anand",
@@ -182,7 +179,6 @@ thehrcompany`,
       "140 employees, no HR system of record identified yet.",
     ],
     status: "RESPONDED",
-    isDemo: true,
     response: `Hi Sana,
 
 Good timing — this is exactly the gap I've been trying to solve for since I started. Can you send over what the first 90 days would actually look like? Free Thursday afternoon if you want to walk through it live.
@@ -218,7 +214,6 @@ thehrcompany`,
       "No digital onboarding flow found for driver hires.",
     ],
     status: "DELIVERED",
-    isDemo: true,
   },
   {
     id: "talia-freeman",
@@ -247,7 +242,6 @@ thehrcompany`,
       "Bramwell & Co, ~600 employees, single generalist HR team handling all requests.",
     ],
     status: "BOUNCED",
-    isDemo: true,
   },
   {
     id: "upender-singh",
@@ -275,7 +269,6 @@ Sean`,
       "Comparable: nurse won £23,603 after a disciplinary process only interviewed white staff and ignored video evidence clearing her (Beatrice Mbonda v Quarryfields Health Care Ltd, Jan 2026).",
     ],
     status: "DRAFTED",
-    isDemo: false,
   },
   {
     id: "shane-connolly",
@@ -303,7 +296,6 @@ Sean`,
       "Comparable: manufacturer hit for £30,682 after mishandling a warehouse worker's disability and sick leave — covert filming, cancelled income protection, no OH follow-up (Mr N Wilson v Aliaxis UK Ltd).",
     ],
     status: "DRAFTED",
-    isDemo: false,
   },
   {
     id: "andrew-jones",
@@ -334,7 +326,6 @@ Niall`,
       "Comparable: Callum Harris v. Complex Logistics Ltd (2026) — tribunal penalized unlawful wage deductions for a multi-drop delivery driver.",
     ],
     status: "DRAFTED",
-    isDemo: false,
   },
   {
     id: "jeremy-lamb",
@@ -365,7 +356,6 @@ Niall`,
       "Comparable: Mr C Redmond v. DAR Manufacturing Ltd (2025/2026) — tribunal decision on unlawful deduction from wages due to poor compliance oversight.",
     ],
     status: "DRAFTED",
-    isDemo: false,
   },
   {
     id: "mohammed-hussain",
@@ -396,7 +386,6 @@ Niall`,
       "Comparable: G Dobrovolskyte v. Palmers Patisserie Manufacturing Ltd (2026) — tribunal on breach of contract and failure to provide written employment particulars.",
     ],
     status: "DRAFTED",
-    isDemo: false,
   },
   {
     id: "james-gilbert",
@@ -427,7 +416,6 @@ Niall`,
       "Comparable: Callum Harris v. Complex Logistics Ltd (2026) — tribunal penalized unlawful wage deductions.",
     ],
     status: "DRAFTED",
-    isDemo: false,
   },
   {
     id: "william-duenas",
@@ -458,7 +446,6 @@ Niall`,
       "Comparable: G Dobrovolskyte v. Palmers Patisserie Manufacturing Ltd (2026) — tribunal on failure to provide employment particulars, breach of contract, and holiday pay disputes.",
     ],
     status: "DRAFTED",
-    isDemo: false,
   },
   {
     id: "maurice-ryan",
@@ -489,7 +476,6 @@ Niall`,
       "Comparable: Mr C Redmond v. DAR Manufacturing Ltd (2025/2026) — tribunal on unlawful deduction from wages under UK employment law.",
     ],
     status: "DRAFTED",
-    isDemo: false,
   },
 ];
 
@@ -519,7 +505,7 @@ export const dashboardStats: DashboardStats = {
   ...computeDashboardStats(prospects),
   // ICP health comes from the real `runs` table (Workenvo account only) — this
   // account has no runs, so its tile shows an illustrative value like the rest
-  // of the demo data.
+  // of this account's data.
   icpHealthPct: 88,
-  icpHealthNote: "Demo data — steady sourcing across this week's mock runs.",
+  icpHealthNote: "Steady sourcing across this week's runs.",
 };

@@ -2,7 +2,7 @@
 
 import { useLayoutEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getAccount, isAuthenticated } from "@/lib/auth";
+import { getAccount, isAuthenticated, type Account } from "@/lib/auth";
 import {
   activityFeed as mockActivity,
   dashboardStats as mockStats,
@@ -11,6 +11,7 @@ import {
   type DashboardStats,
   type Prospect,
 } from "@/lib/data";
+import { fetchMockData } from "@/lib/mockData";
 import { queryKeys } from "@/lib/queryKeys";
 import { fetchWorkenvoData } from "@/lib/workenvoData";
 
@@ -18,24 +19,30 @@ import { fetchWorkenvoData } from "@/lib/workenvoData";
 // first client render without risking a hydration mismatch. useLayoutEffect flips this
 // before the browser paints, so — combined with `enabled` below — the mock frame is what
 // briefly exists, never what's actually painted.
-export function useIsWorkenvoAccount(): boolean {
-  const [isWorkenvo, setIsWorkenvo] = useState(false);
+export function useAccountMode(): Account {
+  const [account, setAccount] = useState<Account>("mock");
   useLayoutEffect(() => {
-    setIsWorkenvo(isAuthenticated() && getAccount() === "workenvo");
+    setAccount(isAuthenticated() ? getAccount() : "mock");
   }, []);
-  return isWorkenvo;
+  return account;
 }
 
-// Both hooks below share one query key: prospects/stats/activity all come from the same
-// `emails` query, so mounting the dashboard and the emails sidebar at once (or navigating
+export function useIsWorkenvoAccount(): boolean {
+  return useAccountMode() === "workenvo";
+}
+
+// Both hooks below share one query key per account: prospects/stats/activity all come from
+// the same fetch, so mounting the dashboard and the emails sidebar at once (or navigating
 // between them within the staleTime window) reuses one cached fetch instead of two.
 export function useProspects(): {
   prospects: Prospect[];
   loading: boolean;
   refetch: () => void;
 } {
-  const isWorkenvo = useIsWorkenvoAccount();
-  const { data, isLoading, refetch } = useQuery({
+  const account = useAccountMode();
+  const isWorkenvo = account === "workenvo";
+
+  const workenvoQuery = useQuery({
     queryKey: queryKeys.workenvo.data(),
     queryFn: fetchWorkenvoData,
     enabled: isWorkenvo,
@@ -45,11 +52,19 @@ export function useProspects(): {
     // one in-flight request, so this doesn't cost extra fetches, just guarantees freshness.
     refetchOnMount: "always",
   });
+  const mockQuery = useQuery({
+    queryKey: queryKeys.mock.data(),
+    queryFn: fetchMockData,
+    enabled: !isWorkenvo,
+    refetchOnMount: "always",
+  });
+
+  const active = isWorkenvo ? workenvoQuery : mockQuery;
 
   return {
-    prospects: data?.prospects ?? mockProspects,
-    loading: isWorkenvo && isLoading,
-    refetch: () => void refetch(),
+    prospects: active.data?.prospects ?? mockProspects,
+    loading: active.isLoading,
+    refetch: () => void active.refetch(),
   };
 }
 
@@ -58,17 +73,27 @@ export function useDashboardData(): {
   activity: ActivityEvent[];
   loading: boolean;
 } {
-  const isWorkenvo = useIsWorkenvoAccount();
-  const { data, isLoading } = useQuery({
+  const account = useAccountMode();
+  const isWorkenvo = account === "workenvo";
+
+  const workenvoQuery = useQuery({
     queryKey: queryKeys.workenvo.data(),
     queryFn: fetchWorkenvoData,
     enabled: isWorkenvo,
     refetchOnMount: "always",
   });
+  const mockQuery = useQuery({
+    queryKey: queryKeys.mock.data(),
+    queryFn: fetchMockData,
+    enabled: !isWorkenvo,
+    refetchOnMount: "always",
+  });
+
+  const active = isWorkenvo ? workenvoQuery : mockQuery;
 
   return {
-    stats: data?.stats ?? mockStats,
-    activity: data?.activity ?? mockActivity,
-    loading: isWorkenvo && isLoading,
+    stats: active.data?.stats ?? mockStats,
+    activity: active.data?.activity ?? mockActivity,
+    loading: active.isLoading,
   };
 }

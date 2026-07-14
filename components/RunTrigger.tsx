@@ -2,8 +2,9 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { enqueueRun, fetchLatestRunRequest } from "@/lib/outreachApi";
 import { queryKeys } from "@/lib/queryKeys";
-import { enqueueRun, fetchLatestRunRequest } from "@/lib/workenvoData";
+import { useAccountMode } from "@/lib/useAccountData";
 
 const POLL_MS = 5000;
 
@@ -11,9 +12,11 @@ export default function RunTrigger() {
   const [open, setOpen] = useState(false);
   const [count, setCount] = useState(3);
   const queryClient = useQueryClient();
+  const account = useAccountMode();
+  const keys = queryKeys.forAccount(account);
 
   const { data: latest } = useQuery({
-    queryKey: queryKeys.workenvo.latestRunRequest(),
+    queryKey: keys.latestRunRequest(),
     queryFn: fetchLatestRunRequest,
     refetchInterval: POLL_MS,
   });
@@ -22,7 +25,7 @@ export default function RunTrigger() {
     mutationFn: enqueueRun,
     onSuccess: () => {
       setOpen(false);
-      queryClient.invalidateQueries({ queryKey: queryKeys.workenvo.latestRunRequest() });
+      queryClient.invalidateQueries({ queryKey: keys.latestRunRequest() });
     },
     onError: (err) => {
       console.error("[RunTrigger] failed to enqueue:", err);

@@ -3,6 +3,10 @@ export interface DashboardStats {
   bounceRatePct: number;
   replyRatePct: number;
   totalDrafted: number;
+  /** EWMA-smoothed reading of `runs.icp_health` (0-10 scale) as a 0-100 percentage. */
+  icpHealthPct?: number | null;
+  /** `icp_health_note` from the most recent run — the "why" behind the score. */
+  icpHealthNote?: string | null;
 }
 
 export type ActivityTone = "success" | "info" | "warning";
@@ -511,4 +515,11 @@ export function computeDashboardStats(list: Prospect[]): DashboardStats {
 }
 
 /** Derived straight from `prospects` — no hand-typed campaign numbers. */
-export const dashboardStats: DashboardStats = computeDashboardStats(prospects);
+export const dashboardStats: DashboardStats = {
+  ...computeDashboardStats(prospects),
+  // ICP health comes from the real `runs` table (Workenvo account only) — this
+  // account has no runs, so its tile shows an illustrative value like the rest
+  // of the demo data.
+  icpHealthPct: 88,
+  icpHealthNote: "Demo data — steady sourcing across this week's mock runs.",
+};

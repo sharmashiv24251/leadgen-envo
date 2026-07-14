@@ -115,20 +115,64 @@ function eventForRow(row: EmailRow): ActivityEvent {
   };
 }
 
+// Weight given to each new run's raw score vs. the running average — high enough that
+// 2-3 consecutive bad runs clearly bend the line (real ICP exhaustion), low enough that
+// one noisy/unlucky run doesn't whiplash it. Runs land at most once a day, so there's no
+// point smoothing over a long window the way you would with higher-frequency data.
+const ICP_EWMA_ALPHA = 0.35;
+
+// icp_health is a 0-10 "how easy was sourcing today" score the agent self-reports at the
+// end of each run (backend/devinstruction.md); this folds the full history into one
+// EWMA-smoothed reading and surfaces the latest run's note as the "why" behind it.
+function computeIcpHealth(
+  rows: { icp_health: number; icp_health_note: string | null }[]
+): { pct: number | null; note: string | null } {
+  if (rows.length === 0) return { pct: null, note: null };
+
+  let ewma = rows[0].icp_health;
+  for (let i = 1; i < rows.length; i++) {
+    ewma = ICP_EWMA_ALPHA * rows[i].icp_health + (1 - ICP_EWMA_ALPHA) * ewma;
+  }
+
+  return { pct: Math.round(ewma * 10), note: rows[rows.length - 1].icp_health_note };
+}
+
+async function fetchIcpHealth(): Promise<{ pct: number | null; note: string | null }> {
+  const { data, error } = await supabaseBrowser
+    .from("runs")
+    .select("icp_health, icp_health_note, started_at")
+    .eq("client_id", WORKENVO_CLIENT_ID)
+    .not("icp_health", "is", null)
+    .order("started_at", { ascending: true });
+
+  if (error) {
+    console.error("[workenvoData] fetchIcpHealth failed:", error.message);
+    return { pct: null, note: null };
+  }
+
+  return computeIcpHealth(
+    (data ?? []) as { icp_health: number; icp_health_note: string | null }[]
+  );
+}
+
 export async function fetchWorkenvoData(): Promise<{
   prospects: Prospect[];
   stats: DashboardStats;
   activity: ActivityEvent[];
 }> {
-  const { data, error } = await supabaseBrowser
-    .from("emails")
-    .select(
-      `id, subject, body, why_this_angle, status, reply_body, created_at, updated_at,
-       contacts ( id, full_name, title, company, location, email, email_status, phone )`
-    )
-    .eq("client_id", WORKENVO_CLIENT_ID)
-    .order("created_at", { ascending: false });
+  const [emailsResult, icpHealth] = await Promise.all([
+    supabaseBrowser
+      .from("emails")
+      .select(
+        `id, subject, body, why_this_angle, status, reply_body, created_at, updated_at,
+         contacts ( id, full_name, title, company, location, email, email_status, phone )`
+      )
+      .eq("client_id", WORKENVO_CLIENT_ID)
+      .order("created_at", { ascending: false }),
+    fetchIcpHealth(),
+  ]);
 
+  const { data, error } = emailsResult;
   if (error) {
     console.error("[workenvoData] fetch failed:", error.message);
     return { prospects: [], stats: computeDashboardStats([]), activity: [] };
@@ -137,7 +181,11 @@ export async function fetchWorkenvoData(): Promise<{
   const rows = (data ?? []) as unknown as EmailRow[];
   const prospects = rows.map(mapRowToProspect);
   const activity = rows.slice(0, 10).map(eventForRow);
-  const stats = computeDashboardStats(prospects);
+  const stats: DashboardStats = {
+    ...computeDashboardStats(prospects),
+    icpHealthPct: icpHealth.pct,
+    icpHealthNote: icpHealth.note,
+  };
 
   return { prospects, stats, activity };
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import AgentsBanner from "@/components/AgentsBanner";
 import AutoSendToggle from "@/components/AutoSendToggle";
@@ -53,15 +54,11 @@ function SendGlyph() {
   );
 }
 
-function DraftGlyph() {
+function GaugeGlyph() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
-      <path
-        d="M10.8 2.6 13.4 5.2 5.5 13 2 14l1-3.5 7.8-7.9Z"
-        stroke="white"
-        strokeWidth="1.3"
-        strokeLinejoin="round"
-      />
+      <path d="M2.5 12a5.5 5.5 0 1 1 11 0" stroke="white" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M8 12 10.4 7.6" stroke="white" strokeWidth="1.4" strokeLinecap="round" />
     </svg>
   );
 }
@@ -82,18 +79,17 @@ function StatPanel({
 }: {
   label: string;
   value: string;
-  icon: "target" | "chat" | "send" | "draft";
+  icon: "target" | "chat" | "send";
   tone?: "success" | "muted";
   hero?: boolean;
 }) {
   // target/chat are the "good news" metrics — their icon color follows whether
-  // the number actually earns it (tone), not just its category. send/draft are
-  // plain categorical facts, always the same color regardless of value. The
+  // the number actually earns it (tone), not just its category. send is a
+  // plain categorical fact, always the same color regardless of value. The
   // hero card overrides all of this with a fixed solid-blue treatment below.
-  const iconBgTone: "success" | "accent" | "pending" | "muted" =
-    icon === "send" ? "accent" : icon === "draft" ? "pending" : tone;
+  const iconBgTone: "success" | "accent" | "pending" | "muted" = icon === "send" ? "accent" : tone;
 
-  const Glyph = icon === "target" ? TargetGlyph : icon === "chat" ? ChatGlyph : icon === "send" ? SendGlyph : DraftGlyph;
+  const Glyph = icon === "target" ? TargetGlyph : icon === "chat" ? ChatGlyph : SendGlyph;
 
   const valueClasses = hero ? "text-accent-ink" : tone === "success" ? "text-success" : "text-ink";
   const labelClasses = hero ? "text-accent-ink/90" : "text-ink-muted";
@@ -120,6 +116,90 @@ function StatPanel({
         <span className={`text-sm ${labelClasses}`}>{label}</span>
       </div>
       <span className={`tabular-nums ${valueSizeClasses} ${valueClasses}`}>{value}</span>
+    </div>
+  );
+}
+
+// Thresholds on the EWMA-smoothed 0-100 reading (see computeIcpHealth in workenvoData.ts) —
+// success/warning/danger bands so a declining trend reads at a glance, not just as a number.
+const ICP_TONE = {
+  success: { text: "text-success", icon: "bg-success" },
+  warning: { text: "text-pending", icon: "bg-pending" },
+  danger: { text: "text-danger", icon: "bg-danger" },
+  muted: { text: "text-ink", icon: "bg-ink-faint" },
+} as const;
+
+function icpTone(pct: number | null): keyof typeof ICP_TONE {
+  if (pct === null) return "muted";
+  if (pct >= 70) return "success";
+  if (pct >= 40) return "warning";
+  return "danger";
+}
+
+function InfoGlyph() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M8 7.3v3.8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <circle cx="8" cy="5.1" r="0.9" fill="currentColor" />
+    </svg>
+  );
+}
+
+// A dedicated hover/focus-triggered tooltip (rather than the shared Tooltip component)
+// because the note is a full sentence that needs to wrap, not a nowrap label — and it
+// animates in/out via AnimatePresence for a softer reveal than a plain CSS opacity fade.
+function NoteTooltip({ note }: { note: string }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        aria-label="Why this score"
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-ink-faint transition-colors hover:bg-surface-raised hover:text-ink-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      >
+        <InfoGlyph />
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            role="tooltip"
+            initial={{ opacity: 0, y: -4, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 0.96 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
+            className="absolute right-0 top-full z-tooltip mt-2 w-64 origin-top-right rounded-xl border border-border bg-surface-raised p-3 text-xs leading-relaxed text-ink shadow-[var(--shadow-panel)]"
+          >
+            {note}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function IcpHealthPanel({ pct, note }: { pct: number | null; note: string | null }) {
+  const tone = ICP_TONE[icpTone(pct)];
+
+  return (
+    <div className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-panel-sm)]">
+      <div className="flex items-center justify-between gap-2.5">
+        <div className="flex items-center gap-2.5">
+          <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] ${tone.icon}`}>
+            <GaugeGlyph />
+          </span>
+          <span className="text-sm text-ink-muted">ICP health</span>
+        </div>
+        {note && <NoteTooltip note={note} />}
+      </div>
+      <span className={`tabular-nums text-4xl font-semibold ${tone.text}`}>
+        {pct === null ? "—" : `${pct}%`}
+      </span>
     </div>
   );
 }
@@ -178,10 +258,9 @@ export default function DashboardView() {
               value={dashboardStats.emailsDelivered.toLocaleString("en-US")}
               icon="send"
             />
-            <StatPanel
-              label="Total drafted"
-              value={dashboardStats.totalDrafted.toLocaleString("en-US")}
-              icon="draft"
+            <IcpHealthPanel
+              pct={dashboardStats.icpHealthPct ?? null}
+              note={dashboardStats.icpHealthNote ?? null}
             />
           </>
         )}

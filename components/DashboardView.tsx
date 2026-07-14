@@ -146,17 +146,22 @@ function InfoGlyph() {
   );
 }
 
+// What the metric means, not the per-run AI note — that note is one agent's subjective
+// read of a single session and isn't a stable definition of the metric itself.
+const ICP_HEALTH_EXPLAINER =
+  "How easy the agent says it's been to find well-fit prospects lately, smoothed across recent runs. Higher means easier sourcing.";
+
 // A dedicated hover/focus-triggered tooltip (rather than the shared Tooltip component)
-// because the note is a full sentence that needs to wrap, not a nowrap label — and it
-// animates in/out via AnimatePresence for a softer reveal than a plain CSS opacity fade.
-function NoteTooltip({ note }: { note: string }) {
+// because this explainer wraps across two lines, not a nowrap label — and it animates
+// in/out via AnimatePresence for a softer reveal than a plain CSS opacity fade.
+function IcpHealthInfoTooltip() {
   const [open, setOpen] = useState(false);
 
   return (
     <div className="relative">
       <button
         type="button"
-        aria-label="Why this score"
+        aria-label="What is ICP health?"
         onMouseEnter={() => setOpen(true)}
         onMouseLeave={() => setOpen(false)}
         onFocus={() => setOpen(true)}
@@ -175,7 +180,7 @@ function NoteTooltip({ note }: { note: string }) {
             transition={{ duration: 0.15, ease: "easeOut" }}
             className="absolute right-0 top-full z-tooltip mt-2 w-64 origin-top-right rounded-xl border border-border bg-surface-raised p-3 text-xs leading-relaxed text-ink shadow-[var(--shadow-panel)]"
           >
-            {note}
+            {ICP_HEALTH_EXPLAINER}
           </motion.div>
         )}
       </AnimatePresence>
@@ -183,7 +188,7 @@ function NoteTooltip({ note }: { note: string }) {
   );
 }
 
-function IcpHealthPanel({ pct, note }: { pct: number | null; note: string | null }) {
+function IcpHealthPanel({ pct }: { pct: number | null }) {
   const tone = ICP_TONE[icpTone(pct)];
 
   return (
@@ -195,7 +200,7 @@ function IcpHealthPanel({ pct, note }: { pct: number | null; note: string | null
           </span>
           <span className="text-sm text-ink-muted">ICP health</span>
         </div>
-        {note && <NoteTooltip note={note} />}
+        <IcpHealthInfoTooltip />
       </div>
       <span className={`tabular-nums text-4xl font-semibold ${tone.text}`}>
         {pct === null ? "—" : `${pct}%`}
@@ -258,10 +263,7 @@ export default function DashboardView() {
               value={dashboardStats.emailsDelivered.toLocaleString("en-US")}
               icon="send"
             />
-            <IcpHealthPanel
-              pct={dashboardStats.icpHealthPct ?? null}
-              note={dashboardStats.icpHealthNote ?? null}
-            />
+            <IcpHealthPanel pct={dashboardStats.icpHealthPct ?? null} />
           </>
         )}
       </div>

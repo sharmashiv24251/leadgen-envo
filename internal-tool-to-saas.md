@@ -20,49 +20,80 @@ safe to drop outright, zero rows had ever used them). All 20 existing rows backf
 `type='intro'`, `direction='outbound'` automatically, verified against the live dashboard query
 post-migration.
 
-Also while in there: `wk-insert-draft` now accepts an optional `follow_up: {subject, body}` in its
-payload and writes it as a second `type='follow_up'` row, always `status='draft'` regardless of
-`auto_send` — write path is ready, `SKILL.md` doesn't send this yet (separate step). `wk-send-email`
-now propagates a sent message's `gmail_thread_id` onto any sibling row still missing one (e.g. a
-follow-up drafted alongside an intro that hadn't been sent yet at draft time) — this is what makes
-"reply goes in the same thread" actually true once follow-up sending is wired up. Also fixed a real
-bug found in the process: the `wk_notify_email_approved()` trigger's failure path had the old table
-name hardcoded in an `UPDATE` — would have broken silently post-rename the next time `agent_token`
-went missing from Vault.
+Also while in there: fixed a real bug found in the process — the `wk_notify_email_approved()`
+trigger's failure path had the old table name hardcoded in an `UPDATE`, which would have broken
+silently post-rename the next time `agent_token` went missing from Vault.
 
-Frontend (`lib/workenvoData.ts`) updated to match: reads now filter `type='intro'` (so the feed
-still shows exactly one row per contact until thread-view UI exists), and — this was a real bug
-caught during the edit, not hypothetical — `updateEmailDraft`/`approveEmail`/`fetchEmailStatus` all
-now additionally filter `type='intro'`. Without that, once a `follow_up` row exists for a contact,
-an unscoped update-by-`contact_id` would touch both rows at once (e.g. editing the intro would
-silently overwrite the follow-up's text too, and approving the intro would accidentally flip the
-follow-up to `approved` as well, triggering an unwanted second send).
+Frontend (`lib/workenvoData.ts`) updated to match: reads filter `type='intro'` (so the feed shows
+exactly one row per contact until a full thread-view UI exists), and — this was a real bug caught
+during the edit, not hypothetical — `updateEmailDraft`/`approveEmail`/`fetchEmailStatus` all filter
+`type='intro'` too. Without that, once a `follow_up` row exists for a contact, an unscoped
+update-by-`contact_id` would touch both rows at once (editing the intro would silently overwrite
+the follow-up's text too, and approving the intro would accidentally flip the follow-up to
+`approved` as well, triggering an unwanted second send).
 
-**Reply detection.** `gmail.readonly` scope added to the existing domain-wide delegation on
-2026-07-17 (Client ID `102461381722782053803`, alongside `gmail.send`) — that blocker is
-cleared, no new key or redeploy needed. Mechanism: `history.list`
-per mailbox (`saransh@envo.club`, `info@envo.club`), one API call per mailbox per poll regardless
-of how many threads are outstanding — cost doesn't scale with email volume. Poll every 2-5 min via
-a scheduled Edge Function, same shape as the existing `wk-send-email` trigger. All 7 emails sent
-so far already have `gmail_thread_id` saved, so they're trackable immediately — needs a one-time
-backfill check (`threads.get` on those 7) since `history.list` only sees forward from a cursor,
-not backward.
+**Reply detection — DONE and live (2026-07-17).** `gmail.readonly` scope added to the existing
+domain-wide delegation (Client ID `102461381722782053803`, alongside `gmail.send`). Built
+`wk-poll-replies` (new Edge Function) + `mailbox_poll_state` (new table, one row per mailbox
+holding a `history.list` cursor) + `wk_poll_replies_cron()` + a `pg_cron` job running every 5
+minutes. One `history.list` call per mailbox per poll regardless of how many threads are
+outstanding — cost doesn't scale with email volume. First run per mailbox does a one-time backfill
+(`threads.get` on every existing sent thread) to catch anything that arrived before polling
+started, then switches to the cheap delta path. Skips Gmail auto-replies/OOO responses
+(`Auto-Submitted`/`X-Autoreply` headers) so they don't get mistaken for a real reply and wrongly
+suppress a follow-up. **Fully verified live (2026-07-17, later session):** ran a real disposable
+test (contact pointed at an inbox the team controls) through the whole pipeline — real replies
+sent, poller manually triggered, all of them correctly written as `type='reply'` rows with full
+quoted-body text extracted (not just Gmail's truncated snippet), contact + intro `status` both
+flipped to `replied`, and a `notifications` row fired for each with the right title/detail. Not a
+theoretical pass — real data, real detection, checked directly in the database.
 
-**Send-into-thread primitive.** One function, correct `In-Reply-To`/`References`/`threadId`
-headers, that both the follow-up job and manual dashboard replies call — not two separate send
-paths.
+**Send-into-thread primitive — DONE and verified live (2026-07-17), took two real bugs to get
+right.** Turned out `wk-send-email` never actually supported this despite the `gmail_thread_id`
+bookkeeping already in place — it never set `References`/`In-Reply-To`/`threadId`, so any second
+send would have created a disconnected new thread, not joined the existing one.
 
-**Follow-up email — simplified 2026-07-17, complexity dialed down.** No `auto_follow_up` flag, no
-`follow_up_wait_days`, no scheduled eligibility job, no "due for follow-up" reminder/notification
-anywhere. Instead: the follow-up draft is written **at the same time as the intro**, by the same
-agent invocation that's already researching and drafting it (small addition to `SKILL.md`'s Phase
-4/5 — draft both, `wk-insert-draft` inserts both as two rows against the same contact/thread, intro
-as `type='intro'`, follow-up as `type='follow_up'`, both `status='draft'`). No extra Claude Code
-run, no marginal cost — it already has full context in that pass.
+First fix attempt: generate our own RFC822 `Message-ID` and store it for the next message in the
+thread to reference. **This looked right in every check and was still wrong** — a live test showed
+two real replies landing in two separate Gmail conversations instead of one. Root cause: **Gmail's
+send API silently ignores/overwrites any client-supplied `Message-ID` and always assigns its own.**
+Our stored ID was never the one actually transmitted, so every `In-Reply-To` we set pointed at a
+Message-ID that never existed on the wire — invisible to us because our own verification only ever
+checked the sending mailbox's internal `threadId` grouping (which Gmail honours regardless of
+header correctness), never the actual RFC822 headers a *recipient's* mail client relies on. Real
+fix: stop setting a custom Message-ID at all; fetch the real one Gmail assigned via one extra
+`messages.get` call right after sending, store that instead. Second bug found while fixing the
+first: that extra lookup call was silently failing (403, swallowed) because it reused an access
+token scoped only to `gmail.send` — needed `gmail.readonly` too. Both fixed, then verified twice
+more live: two more disposable send-pairs, both correctly threaded (`In-Reply-To` matching the
+real prior `Message-Id`, confirmed via raw Gmail API response, not just our own database).
 
-It just sits there, editable, until the human decides to send it — no day-gating, no banner. UI
-rule is a single conditional: if a reply has come in, don't show the follow-up (it's moot); if not,
-it's there whenever the human wants it, same review/edit/send flow as the intro draft already has.
+Also fixed: sender resolution now falls back to whichever mailbox actually sent the prior message
+in the thread, not the global default sender — thread IDs are per-mailbox, so a follow-up sending
+from a different mailbox than the intro would silently fail to thread (or worse, error) regardless
+of everything else being correct.
+
+**Follow-up email — DONE and verified live (2026-07-17).** No `auto_follow_up` flag, no
+`follow_up_wait_days`, no scheduled eligibility job, no "due for follow-up" reminder/notification.
+The follow-up draft is written **at the same time as the intro**, by the same agent invocation —
+`wk-insert-draft` accepts an optional `follow_up: {body}` in its payload (subject is deliberately
+NOT agent-supplied; the row always reuses the intro's own subject server-side, since Gmail's
+thread-matching requires an exact match and that's not something to leave to prompt-following).
+`SKILL.md` updated (`Phase 4b`) to draft the follow-up body in the same pass, no extra Claude Code
+run, no marginal cost.
+
+**Custom reply send — NOT STARTED.** Still the one open item in Phase 1: no backend endpoint, no
+compose-box UI. Replying to what a prospect actually wrote (as opposed to the pre-drafted
+follow-up) isn't possible from the dashboard yet.
+
+Frontend: `Prospect.followUp`, a new `FollowUpCard` component (edit/save/send, no sender picker —
+thread-locked, not a per-send choice), wired into `EmailDetail.tsx`. `fetchWorkenvoData` hides
+`followUp` entirely once a reply exists — a follow-up is moot once someone's responded, so this is
+a single conditional in the data layer rather than duplicated UI logic. It just sits there,
+editable, until a human sends it — no day-gating, no banner.
+
+Not yet done: a live end-to-end test (disposable contact, real inbox) to actually watch an intro +
+follow-up land threaded correctly, rather than trust code review alone.
 
 **Custom reply send.** For anything outside the intro/follow-up drafts — e.g. replying to what a
 prospect actually wrote back, or sending an ad-hoc note into an existing thread. A free-text

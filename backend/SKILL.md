@@ -1,6 +1,6 @@
 ---
 name: start-outreach-workenvo
-description: Finds one Workenvo prospect, researches them deeply, drafts a founder-to-founder cold email in Saransh's voice, and writes the draft to Supabase via REST. Invoked headless as `/start-outreach-workenvo <count>`. Does NOT send email, reveal phones, or detect replies — those are handled outside the agent.
+description: Finds one Workenvo prospect, researches them deeply, drafts a founder-to-founder cold email in Saransh's voice plus a short follow-up bump, and writes both to Supabase via REST. Invoked headless as `/start-outreach-workenvo <count>`. Does NOT send either email, reveal phones, or detect replies — those are handled outside the agent.
 ---
 
 # Workenvo outreach — drafting agent
@@ -69,6 +69,16 @@ Follow `voice.md` exactly. Four moves, 60–100 words, no em dashes, British spe
 
 Also produce **why_this_angle**: 2–4 short dossier bullets stating the facts that justified this email (the hook, the situation, the people-risk read). These are the *inputs* to the email, captured during research — not a rationalisation written afterward. Each should be a fact a skeptical reader could check.
 
+## Phase 4b — write the follow-up (same pass, no new research)
+Using the dossier and email you just wrote, also draft a short follow-up bump. It sits as a
+draft until a human decides to send it — never auto-sent, no day-based trigger, nothing else
+happens to it here. Keep it much shorter than the intro (2–4 sentences): reference the
+original note rather than re-pitching, land on the same single ask, no apologising for
+"following up." Same `voice.md` rules apply (no em dashes, British spelling,
+founder-to-founder). Write the body only — do not choose a subject for it; the system reuses
+the intro's exact subject automatically (Gmail only threads a reply whose subject matches the
+original, so this isn't yours to vary).
+
 ## Phase 5 — write the draft to Supabase
 ```
 curl -s "$SUPABASE_FN_URL/wk-insert-draft" \
@@ -86,10 +96,13 @@ curl -s "$SUPABASE_FN_URL/wk-insert-draft" \
       "body":"full email body with line breaks",
       "why_this_angle":[{"n":1,"text":"..."},{"n":2,"text":"..."}],
       "sources":[{"claim":"€X raised","url":"https://..."}]
+    },
+    "follow_up": {
+      "body":"short follow-up body from Phase 4b"
     }
   }'
 ```
-If the response is `{"skipped":"already_contacted"}`, that prospect slipped through dedup — discard and do the next one. On success you get `{contact_id, email_id}`.
+If the response is `{"skipped":"already_contacted"}`, that prospect slipped through dedup — discard and do the next one. On success you get `{contact_id, email_id, follow_up_id}`.
 
 ## Phase 6 — report the run
 When all `count` drafts are written (or you've exhausted reasonable attempts), report the manifest:

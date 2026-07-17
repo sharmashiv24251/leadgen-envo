@@ -84,9 +84,8 @@ function mapRowToProspect(row: EmailRow): Prospect {
     body: row.body,
     intel,
     status: STATUS_MAP[row.status] ?? "DRAFTED",
-    // Reply text now lives as its own inbound row in email_messages (type='reply'), not a
-    // field on the outbound row -- surfacing it is part of the reply-detection build, not
-    // wired up yet.
+    // Default; fetchWorkenvoData overwrites this from the separate reply-messages fetch
+    // below (a reply is its own inbound row in email_messages, not a field on this row).
     response: undefined,
   };
 }
@@ -156,12 +155,33 @@ async function fetchIcpHealth(): Promise<{ pct: number | null; note: string | nu
   );
 }
 
+// One row per contact (the most recent 'reply' message) -- EmailDetail's "Reply received"
+// card shows a single reply, not a full thread, so latest-only matches what's actually
+// rendered. Full thread view (every message, not just the latest reply) is Phase 2 UI work.
+async function fetchLatestReplies(clientId: string): Promise<Map<string, string>> {
+  const { data, error } = await supabaseBrowser
+    .from("email_messages")
+    .select("contact_id, body, created_at")
+    .eq("client_id", clientId)
+    .eq("type", "reply")
+    .order("created_at", { ascending: false });
+  if (error) {
+    console.error("[workenvoData] fetchLatestReplies failed:", error.message);
+    return new Map();
+  }
+  const latest = new Map<string, string>();
+  for (const row of data ?? []) {
+    if (!latest.has(row.contact_id)) latest.set(row.contact_id, row.body);
+  }
+  return latest;
+}
+
 export async function fetchWorkenvoData(): Promise<{
   prospects: Prospect[];
   stats: DashboardStats;
   activity: ActivityEvent[];
 }> {
-  const [emailsResult, icpHealth] = await Promise.all([
+  const [emailsResult, icpHealth, replies] = await Promise.all([
     supabaseBrowser
       .from("email_messages")
       .select(
@@ -172,6 +192,7 @@ export async function fetchWorkenvoData(): Promise<{
       .eq("type", "intro")
       .order("created_at", { ascending: false }),
     fetchIcpHealth(),
+    fetchLatestReplies(WORKENVO_CLIENT_ID),
   ]);
 
   const { data, error } = emailsResult;
@@ -182,6 +203,10 @@ export async function fetchWorkenvoData(): Promise<{
 
   const rows = (data ?? []) as unknown as EmailRow[];
   const prospects = rows.map(mapRowToProspect);
+  for (const p of prospects) {
+    const reply = replies.get(p.id);
+    if (reply) p.response = reply;
+  }
   const activity = rows.slice(0, 10).map(eventForRow);
   const stats: DashboardStats = {
     ...computeDashboardStats(prospects),

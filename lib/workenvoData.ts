@@ -4,6 +4,8 @@ import {
   type ActivityEvent,
   type ActivityTone,
   type DashboardStats,
+  type FollowUp,
+  type FollowUpStatus,
   type Prospect,
   type ProspectStatus,
 } from "@/lib/data";
@@ -176,12 +178,34 @@ async function fetchLatestReplies(clientId: string): Promise<Map<string, string>
   return latest;
 }
 
+// At most one 'follow_up' row per contact (email_messages_one_followup unique index), so
+// no "latest" ambiguity here the way there is for replies.
+async function fetchFollowUps(clientId: string): Promise<Map<string, FollowUp>> {
+  const { data, error } = await supabaseBrowser
+    .from("email_messages")
+    .select("id, contact_id, subject, body, status")
+    .eq("client_id", clientId)
+    .eq("type", "follow_up");
+  if (error) {
+    console.error("[workenvoData] fetchFollowUps failed:", error.message);
+    return new Map();
+  }
+  const byContact = new Map<string, FollowUp>();
+  for (const row of data ?? []) {
+    byContact.set(row.contact_id, {
+      id: row.id, subject: row.subject, body: row.body,
+      status: (row.status as FollowUpStatus) ?? "draft",
+    });
+  }
+  return byContact;
+}
+
 export async function fetchWorkenvoData(): Promise<{
   prospects: Prospect[];
   stats: DashboardStats;
   activity: ActivityEvent[];
 }> {
-  const [emailsResult, icpHealth, replies] = await Promise.all([
+  const [emailsResult, icpHealth, replies, followUps] = await Promise.all([
     supabaseBrowser
       .from("email_messages")
       .select(
@@ -193,6 +217,7 @@ export async function fetchWorkenvoData(): Promise<{
       .order("created_at", { ascending: false }),
     fetchIcpHealth(),
     fetchLatestReplies(WORKENVO_CLIENT_ID),
+    fetchFollowUps(WORKENVO_CLIENT_ID),
   ]);
 
   const { data, error } = emailsResult;
@@ -206,6 +231,12 @@ export async function fetchWorkenvoData(): Promise<{
   for (const p of prospects) {
     const reply = replies.get(p.id);
     if (reply) p.response = reply;
+    // A follow-up doesn't make sense once they've already replied -- hide it rather than
+    // show a stale nudge for someone who's already responded.
+    else {
+      const followUp = followUps.get(p.id);
+      if (followUp) p.followUp = followUp;
+    }
   }
   const activity = rows.slice(0, 10).map(eventForRow);
   const stats: DashboardStats = {
@@ -256,6 +287,48 @@ export async function fetchEmailStatus(contactId: string): Promise<string | null
     .maybeSingle();
   if (error) {
     console.error("[workenvoData] fetchEmailStatus failed:", error.message);
+    return null;
+  }
+  return data?.status ?? null;
+}
+
+// The follow-up's send_from is never set here -- wk-send-email falls back to whatever the
+// intro was actually sent from (via provider_meta lookup for threading), which is the only
+// mailbox this can legally send from anyway; the same-thread requirement makes the sender
+// non-negotiable, not a dropdown choice.
+export async function updateFollowUpDraft(
+  contactId: string,
+  updates: { subject: string; body: string }
+): Promise<void> {
+  const { error } = await supabaseBrowser
+    .from("email_messages")
+    .update(updates)
+    .eq("contact_id", contactId)
+    .eq("client_id", WORKENVO_CLIENT_ID)
+    .eq("type", "follow_up");
+  if (error) throw new Error(error.message);
+}
+
+export async function approveFollowUp(contactId: string): Promise<void> {
+  const { error } = await supabaseBrowser
+    .from("email_messages")
+    .update({ status: "approved" })
+    .eq("contact_id", contactId)
+    .eq("client_id", WORKENVO_CLIENT_ID)
+    .eq("type", "follow_up");
+  if (error) throw new Error(error.message);
+}
+
+export async function fetchFollowUpStatus(contactId: string): Promise<string | null> {
+  const { data, error } = await supabaseBrowser
+    .from("email_messages")
+    .select("status")
+    .eq("contact_id", contactId)
+    .eq("client_id", WORKENVO_CLIENT_ID)
+    .eq("type", "follow_up")
+    .maybeSingle();
+  if (error) {
+    console.error("[workenvoData] fetchFollowUpStatus failed:", error.message);
     return null;
   }
   return data?.status ?? null;

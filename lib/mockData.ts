@@ -89,6 +89,19 @@ export async function fetchEmailStatus(id: string): Promise<string | null> {
   return "draft";
 }
 
+// No seed prospect in lib/data.ts carries a followUp, so these paths are never actually
+// reachable from the demo UI -- exist only to satisfy outreachApi's dispatcher contract.
+export async function updateFollowUpDraft(
+  _contactId: string,
+  _updates: { subject: string; body: string }
+): Promise<void> {}
+
+export async function approveFollowUp(_contactId: string): Promise<void> {}
+
+export async function fetchFollowUpStatus(_contactId: string): Promise<string | null> {
+  return null;
+}
+
 export async function fetchSenderOptions(): Promise<SenderOption[]> {
   return HR_SENDER_OPTIONS;
 }

@@ -6,6 +6,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Chip from "@/components/Chip";
 import { useContextMenu } from "@/components/ContextMenu";
 import CopyBadge from "@/components/CopyBadge";
+import FollowUpCard from "@/components/FollowUpCard";
 import { PhoneIcon } from "@/components/icons";
 import Tooltip from "@/components/Tooltip";
 import { copySelectionOr } from "@/lib/clipboard";
@@ -363,6 +364,10 @@ export default function EmailDetail({
             </p>
           </div>
         )}
+
+        {/* fetchWorkenvoData already omits followUp once a reply exists, so no reply-check
+            needed here -- if it's present, it's still relevant. */}
+        {prospect.followUp && <FollowUpCard contactId={prospect.id} followUp={prospect.followUp} />}
       </div>
     </section>
   );

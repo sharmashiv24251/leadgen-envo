@@ -31,6 +31,23 @@ export async function fetchEmailStatus(contactId: string): Promise<string | null
   return isWorkenvo() ? workenvo.fetchEmailStatus(contactId) : mock.fetchEmailStatus(contactId);
 }
 
+export async function updateFollowUpDraft(
+  contactId: string,
+  updates: { subject: string; body: string }
+): Promise<void> {
+  return isWorkenvo()
+    ? workenvo.updateFollowUpDraft(contactId, updates)
+    : mock.updateFollowUpDraft(contactId, updates);
+}
+
+export async function approveFollowUp(contactId: string): Promise<void> {
+  return isWorkenvo() ? workenvo.approveFollowUp(contactId) : mock.approveFollowUp(contactId);
+}
+
+export async function fetchFollowUpStatus(contactId: string): Promise<string | null> {
+  return isWorkenvo() ? workenvo.fetchFollowUpStatus(contactId) : mock.fetchFollowUpStatus(contactId);
+}
+
 export async function fetchSenderOptions() {
   return isWorkenvo() ? workenvo.fetchSenderOptions() : mock.fetchSenderOptions();
 }

@@ -14,6 +14,8 @@ export const queryKeys = {
     defaultSender: () => [...queryKeys.workenvo.all, "default-sender"] as const,
     emailStatus: (contactId: string) =>
       [...queryKeys.workenvo.all, "email-status", contactId] as const,
+    followUpStatus: (contactId: string) =>
+      [...queryKeys.workenvo.all, "follow-up-status", contactId] as const,
     latestRunRequest: () => [...queryKeys.workenvo.all, "run-request", "latest"] as const,
   },
   mock: {
@@ -24,6 +26,8 @@ export const queryKeys = {
     defaultSender: () => [...queryKeys.mock.all, "default-sender"] as const,
     emailStatus: (contactId: string) =>
       [...queryKeys.mock.all, "email-status", contactId] as const,
+    followUpStatus: (contactId: string) =>
+      [...queryKeys.mock.all, "follow-up-status", contactId] as const,
     latestRunRequest: () => [...queryKeys.mock.all, "run-request", "latest"] as const,
   },
   forAccount(account: Account) {

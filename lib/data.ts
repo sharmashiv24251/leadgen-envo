@@ -26,6 +26,15 @@ export type ProspectStatus =
   | "BOUNCED"
   | "RESPONDED";
 
+export type FollowUpStatus = "draft" | "approved" | "sending" | "sent" | "failed";
+
+export interface FollowUp {
+  id: string;
+  subject: string;
+  body: string;
+  status: FollowUpStatus;
+}
+
 export interface Prospect {
   id: string;
   name: string;
@@ -42,6 +51,9 @@ export interface Prospect {
   intel: string[];
   status: ProspectStatus;
   response?: string;
+  /** Present only when a follow-up draft exists and no reply has come in yet (moot once
+   * they've replied) -- see fetchWorkenvoData for the merge logic. */
+  followUp?: FollowUp;
 }
 
 /** Computes the actual calendar date `daysAgo` days back from whenever this runs. */

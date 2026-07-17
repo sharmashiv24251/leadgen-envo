@@ -226,7 +226,7 @@ export default function EmailDetail({
                 Email draft
               </h2>
               <div className="flex shrink-0 items-center gap-2">
-                {canEdit && !isEditing && (
+                {canEdit && !isEditing && prospect.status === "DRAFTED" && (
                   <button
                     type="button"
                     onClick={handleEditStart}

@@ -39,7 +39,7 @@ export default function RunTrigger() {
 
   return (
     <div className="flex flex-wrap items-center gap-3">
-      {!open && (
+      {!open && !isActive && (
         <button
           type="button"
           onClick={() => setOpen(true)}
@@ -49,7 +49,7 @@ export default function RunTrigger() {
         </button>
       )}
 
-      {open && (
+      {open && !isActive && (
         <div className="flex items-center gap-2 rounded-full border border-border bg-surface-raised py-1 pl-4 pr-1.5">
           <label htmlFor="run-count" className="text-xs text-ink-muted">
             How many?
@@ -79,6 +79,12 @@ export default function RunTrigger() {
             Cancel
           </button>
         </div>
+      )}
+
+      {enqueueMutation.error && (
+        <span className="text-xs text-danger">
+          {enqueueMutation.error.message || "Couldn't start a run — one may already be queued."}
+        </span>
       )}
 
       {statusLabel && (

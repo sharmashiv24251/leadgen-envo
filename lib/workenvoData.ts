@@ -24,7 +24,6 @@ type EmailRow = {
   body: string;
   why_this_angle: { n: number; text: string }[] | null;
   status: string;
-  reply_body: string | null;
   created_at: string;
   updated_at: string;
   contacts: {
@@ -85,7 +84,10 @@ function mapRowToProspect(row: EmailRow): Prospect {
     body: row.body,
     intel,
     status: STATUS_MAP[row.status] ?? "DRAFTED",
-    response: row.status === "replied" ? row.reply_body ?? undefined : undefined,
+    // Reply text now lives as its own inbound row in email_messages (type='reply'), not a
+    // field on the outbound row -- surfacing it is part of the reply-detection build, not
+    // wired up yet.
+    response: undefined,
   };
 }
 
@@ -161,12 +163,13 @@ export async function fetchWorkenvoData(): Promise<{
 }> {
   const [emailsResult, icpHealth] = await Promise.all([
     supabaseBrowser
-      .from("emails")
+      .from("email_messages")
       .select(
-        `id, subject, body, why_this_angle, status, reply_body, created_at, updated_at,
+        `id, subject, body, why_this_angle, status, created_at, updated_at,
          contacts ( id, full_name, title, company, location, email, email_status, phone )`
       )
       .eq("client_id", WORKENVO_CLIENT_ID)
+      .eq("type", "intro")
       .order("created_at", { ascending: false }),
     fetchIcpHealth(),
   ]);
@@ -196,10 +199,11 @@ export async function updateEmailDraft(
   updates: { subject: string; body: string }
 ): Promise<void> {
   const { error } = await supabaseBrowser
-    .from("emails")
+    .from("email_messages")
     .update(updates)
     .eq("contact_id", contactId)
-    .eq("client_id", WORKENVO_CLIENT_ID);
+    .eq("client_id", WORKENVO_CLIENT_ID)
+    .eq("type", "intro");
   if (error) throw new Error(error.message);
 }
 
@@ -207,10 +211,11 @@ export async function updateEmailDraft(
 // wk-send-email Edge Function the instant this transition happens.
 export async function approveEmail(contactId: string, sendFrom?: string): Promise<void> {
   const { error } = await supabaseBrowser
-    .from("emails")
+    .from("email_messages")
     .update({ status: "approved", send_from: sendFrom ?? null })
     .eq("contact_id", contactId)
-    .eq("client_id", WORKENVO_CLIENT_ID);
+    .eq("client_id", WORKENVO_CLIENT_ID)
+    .eq("type", "intro");
   if (error) throw new Error(error.message);
 }
 
@@ -218,10 +223,11 @@ export async function approveEmail(contactId: string, sendFrom?: string): Promis
 // to reflect the async send outcome (sent/failed) without a full page refetch.
 export async function fetchEmailStatus(contactId: string): Promise<string | null> {
   const { data, error } = await supabaseBrowser
-    .from("emails")
+    .from("email_messages")
     .select("status")
     .eq("contact_id", contactId)
     .eq("client_id", WORKENVO_CLIENT_ID)
+    .eq("type", "intro")
     .maybeSingle();
   if (error) {
     console.error("[workenvoData] fetchEmailStatus failed:", error.message);

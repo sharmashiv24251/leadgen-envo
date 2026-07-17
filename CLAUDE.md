@@ -19,7 +19,9 @@ both only ever talk to Supabase; a `run_requests` table is the queue connecting 
 
 ## Supabase
 - Tables: `clients`, `config` (daily_quota=2, auto_send=false, paused=false — control panel,
-  no code change needed to adjust), `contacts`, `emails`, `runs`, `notifications`,
+  no code change needed to adjust), `contacts`, `email_messages` (renamed from `emails`
+  2026-07-17 — now holds every message in a contact's thread: intro/follow_up/reply/custom,
+  not just one row per contact; see `internal-tool-to-saas.md`), `runs`, `notifications`,
   `run_requests` (the manual/scheduled run queue). Full schema in `backend/devinstruction.md` §0.2.
 - Edge Functions (all deployed, `--no-verify-jwt`, auth via `x-agent-token` header):
   `wk-check-contacted`, `wk-find-email` (real Apollo, **not** stubbed — a test stub existed
@@ -70,7 +72,7 @@ there). Status as of 2026-07-13 (updated, same day, later session):
 **Architecture actually built — deliberately different from the original §2.3 plan.** Instead
 of a VM polling loop with the Gmail key on the VM, sending lives entirely in Supabase: a
 `wk-send-email` Edge Function (Gmail service-account JWT signed with Web Crypto, no `googleapis`
-dependency) holds the credential, and two Postgres triggers on `emails`
+dependency) holds the credential, and two Postgres triggers on `email_messages`
 (`emails_approved_send_insert`, `emails_approved_send`) fire it via `pg_net` the instant a row's
 `status` becomes `'approved'` — whether that happens because `wk-insert-draft` auto-approved it
 (`auto_send=true`) or a human clicked "Send Now" on a `draft`. **The GCP VM and the agent's
@@ -98,11 +100,13 @@ the whole session.
   (`components/EmailDetail.tsx`) replaced the old "Send via Gmail" compose-window button with a
   per-email sender dropdown + "Send Now" button that actually calls the API path above.
 - **Existing drafts are never retroactively sent.** Toggling `auto_send` only edits the
-  `config` table; it never touches existing `emails` rows. Only newly-inserted drafts (after
+  `config` table; it never touches existing `email_messages` rows. Only newly-inserted drafts (after
   the flag is on) get auto-approved; the flag is read once per email, at insert time.
-- **Not done:** reply detection and bounce detection — still blocked on the missing
-  `gmail.readonly` Workspace delegation scope (§2.4 was never built; `bounced` status exists in
-  the schema but nothing sets it). No rate-limit/quota backoff on send — any Gmail API error
+- **Not done:** reply detection and bounce detection — §2.4 code was never built, but the
+  scope blocker is gone: `gmail.readonly` was added to the domain-wide delegation scopes on
+  2026-07-17 (Client ID `102461381722782053803`, alongside the existing `gmail.send` scope —
+  same key, no redeploy needed). `bounced` status exists in the schema but nothing sets it.
+  No rate-limit/quota backoff on send — any Gmail API error
   just marks the row `failed` once (no auto-retry); low risk at today's `daily_quota=2` but a
   gap vs. the original §2.3 plan if volume grows. **None of this is committed to git yet** —
   still local working-tree changes (the Supabase-side migrations/Edge Function are already live
@@ -111,6 +115,7 @@ the whole session.
 ## Not built yet / explicitly deferred
 - CI/CD is manual by choice (redeploy = SSH + `git pull` + restart, not on every push).
 - No alerting if the scheduler process goes down and stays down.
-- Reply detection and bounce detection (blocked on the missing `gmail.readonly` delegation
-  scope — see Phase 2).
+- Reply detection and bounce detection — not built, but no longer blocked: `gmail.readonly`
+  was added to the domain-wide delegation scopes on 2026-07-17 (see Phase 2). Building the
+  poller itself is still open work.
 - Rate-limit/quota backoff on the send path (`wk-send-email` fails once, no auto-retry).

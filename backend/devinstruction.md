@@ -443,9 +443,12 @@ names below — recorded here so nobody re-derives or duplicates this):
   local machine only. **Not yet moved to the VM.** Treat as a live credential (chmod 600,
   never git-add) until it's relocated per 2.1a below.
 - Workspace admin console (envo.club, Saransh's login): Security → API controls →
-  Domain-wide delegation → this Client ID is authorized for scope `.../auth/gmail.send`
-  only. **`gmail.readonly` was NOT added** — reply detection (§2.4) can't work yet; add
-  that scope in the same admin screen when reply polling gets built.
+  Domain-wide delegation (deep link: `https://admin.google.com/ac/owl/domainwidedelegation`)
+  → this Client ID is authorized for **both** `.../auth/gmail.send` and
+  `.../auth/gmail.readonly` — readonly added 2026-07-17, specifically to unblock reply
+  detection (§2.4). No new key, no redeploy: the scope is chosen per JWT at call time (see
+  the `scope` field in `getAccessToken()` in `wk-send-email`'s code), not baked into the
+  existing `GMAIL_SA_KEY` secret, so the same key covers both scopes going forward.
 - Because delegation is domain-wide (not per-mailbox), the JWT `subject` can be set to
   any real Workspace user mailbox on envo.club (`saransh@`, `info@`, `hello@`, ...) with
   no further admin action — confirm with Saransh whether `info@`/`hello@` are actual
@@ -576,10 +579,10 @@ every 2 min:
 
 To send with no human review, set config `auto_send=true` — then `wk-insert-draft` writes new drafts as `approved` directly and they send on the next tick. No code change.
 
-## 2.4 — Add the reply poller (needs the readonly scope) — STILL NOT BUILT (2026-07-13)
-Confirmed still blocked: `gmail.readonly` has not been added to the domain-wide delegation
-scopes, and none of the code below exists yet. `bounced`/`replied` statuses exist in the schema
-but nothing sets them.
+## 2.4 — Add the reply poller — scope unblocked (2026-07-17), code STILL NOT BUILT
+`gmail.readonly` was added to the domain-wide delegation scopes on 2026-07-17 (see §2.1) —
+that was the only blocker on this section, and it's gone. None of the code below exists yet.
+`bounced`/`replied` statuses exist in the schema but nothing sets them.
 ```
 store lastHistoryId (in config or a small table)
 every 5 min:

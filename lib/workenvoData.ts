@@ -4,10 +4,11 @@ import {
   type ActivityEvent,
   type ActivityTone,
   type DashboardStats,
-  type FollowUp,
-  type FollowUpStatus,
   type Prospect,
   type ProspectStatus,
+  type ThreadMessage,
+  type ThreadMessageStatus,
+  type ThreadMessageType,
 } from "@/lib/data";
 
 // Known id of the 'workenvo' row in the `clients` table (backend/devinstruction.md 0.2 seed).
@@ -86,9 +87,6 @@ function mapRowToProspect(row: EmailRow): Prospect {
     body: row.body,
     intel,
     status: STATUS_MAP[row.status] ?? "DRAFTED",
-    // Default; fetchWorkenvoData overwrites this from the separate reply-messages fetch
-    // below (a reply is its own inbound row in email_messages, not a field on this row).
-    response: undefined,
   };
 }
 
@@ -157,55 +155,12 @@ async function fetchIcpHealth(): Promise<{ pct: number | null; note: string | nu
   );
 }
 
-// One row per contact (the most recent 'reply' message) -- EmailDetail's "Reply received"
-// card shows a single reply, not a full thread, so latest-only matches what's actually
-// rendered. Full thread view (every message, not just the latest reply) is Phase 2 UI work.
-async function fetchLatestReplies(clientId: string): Promise<Map<string, string>> {
-  const { data, error } = await supabaseBrowser
-    .from("email_messages")
-    .select("contact_id, body, created_at")
-    .eq("client_id", clientId)
-    .eq("type", "reply")
-    .order("created_at", { ascending: false });
-  if (error) {
-    console.error("[workenvoData] fetchLatestReplies failed:", error.message);
-    return new Map();
-  }
-  const latest = new Map<string, string>();
-  for (const row of data ?? []) {
-    if (!latest.has(row.contact_id)) latest.set(row.contact_id, row.body);
-  }
-  return latest;
-}
-
-// At most one 'follow_up' row per contact (email_messages_one_followup unique index), so
-// no "latest" ambiguity here the way there is for replies.
-async function fetchFollowUps(clientId: string): Promise<Map<string, FollowUp>> {
-  const { data, error } = await supabaseBrowser
-    .from("email_messages")
-    .select("id, contact_id, subject, body, status")
-    .eq("client_id", clientId)
-    .eq("type", "follow_up");
-  if (error) {
-    console.error("[workenvoData] fetchFollowUps failed:", error.message);
-    return new Map();
-  }
-  const byContact = new Map<string, FollowUp>();
-  for (const row of data ?? []) {
-    byContact.set(row.contact_id, {
-      id: row.id, subject: row.subject, body: row.body,
-      status: (row.status as FollowUpStatus) ?? "draft",
-    });
-  }
-  return byContact;
-}
-
 export async function fetchWorkenvoData(): Promise<{
   prospects: Prospect[];
   stats: DashboardStats;
   activity: ActivityEvent[];
 }> {
-  const [emailsResult, icpHealth, replies, followUps] = await Promise.all([
+  const [emailsResult, icpHealth] = await Promise.all([
     supabaseBrowser
       .from("email_messages")
       .select(
@@ -216,8 +171,6 @@ export async function fetchWorkenvoData(): Promise<{
       .eq("type", "intro")
       .order("created_at", { ascending: false }),
     fetchIcpHealth(),
-    fetchLatestReplies(WORKENVO_CLIENT_ID),
-    fetchFollowUps(WORKENVO_CLIENT_ID),
   ]);
 
   const { data, error } = emailsResult;
@@ -228,16 +181,6 @@ export async function fetchWorkenvoData(): Promise<{
 
   const rows = (data ?? []) as unknown as EmailRow[];
   const prospects = rows.map(mapRowToProspect);
-  for (const p of prospects) {
-    const reply = replies.get(p.id);
-    if (reply) p.response = reply;
-    // A follow-up doesn't make sense once they've already replied -- hide it rather than
-    // show a stale nudge for someone who's already responded.
-    else {
-      const followUp = followUps.get(p.id);
-      if (followUp) p.followUp = followUp;
-    }
-  }
   const activity = rows.slice(0, 10).map(eventForRow);
   const stats: DashboardStats = {
     ...computeDashboardStats(prospects),
@@ -248,90 +191,89 @@ export async function fetchWorkenvoData(): Promise<{
   return { prospects, stats, activity };
 }
 
-// Prospect.id is the contact id (see mapRowToProspect above); `emails_one_per_contact`
-// guarantees exactly one email row per contact, so contact_id is a safe update key.
-export async function updateEmailDraft(
-  contactId: string,
+// Every message in a contact's conversation, oldest first -- the real thread view. Ordered
+// by sent_at where it exists (the true send time) falling back to created_at for anything
+// still a draft (never sent, so has no sent_at yet).
+export async function fetchThreadMessages(contactId: string): Promise<ThreadMessage[]> {
+  const { data, error } = await supabaseBrowser
+    .from("email_messages")
+    .select("id, type, direction, subject, body, status, gmail_thread_id, sent_at, created_at")
+    .eq("contact_id", contactId)
+    .eq("client_id", WORKENVO_CLIENT_ID);
+  if (error) {
+    console.error("[workenvoData] fetchThreadMessages failed:", error.message);
+    return [];
+  }
+  return (data ?? [])
+    .map((row) => ({
+      id: row.id,
+      type: row.type as ThreadMessageType,
+      direction: row.direction as "outbound" | "inbound",
+      subject: row.subject,
+      body: row.body,
+      status: (row.status as ThreadMessageStatus) ?? "draft",
+      gmailThreadId: row.gmail_thread_id,
+      occurredAt: row.sent_at ?? row.created_at,
+    }))
+    .sort((a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime());
+}
+
+// Works for any message (intro, follow-up) still sitting as a draft -- keyed by its own row
+// id, not contact_id+type, so it can never touch a sibling message by accident.
+export async function updateMessageDraft(
+  messageId: string,
   updates: { subject: string; body: string }
 ): Promise<void> {
   const { error } = await supabaseBrowser
     .from("email_messages")
     .update(updates)
-    .eq("contact_id", contactId)
-    .eq("client_id", WORKENVO_CLIENT_ID)
-    .eq("type", "intro");
+    .eq("id", messageId)
+    .eq("client_id", WORKENVO_CLIENT_ID);
   if (error) throw new Error(error.message);
 }
 
-// Flips the email to 'approved' — a DB trigger (see SEND-PLAN.md) fires the
-// wk-send-email Edge Function the instant this transition happens.
-export async function approveEmail(contactId: string, sendFrom?: string): Promise<void> {
+// Flips a message to 'approved' — a DB trigger fires the wk-send-email Edge Function the
+// instant this transition happens. sendFrom only matters for a message with no
+// gmailThreadId yet (i.e. the very first send for this contact); once a thread exists,
+// wk-send-email ignores config defaults and resolves the sender from the thread itself, so
+// the UI should never even offer a choice at that point.
+export async function approveMessageDraft(messageId: string, sendFrom?: string): Promise<void> {
   const { error } = await supabaseBrowser
     .from("email_messages")
     .update({ status: "approved", send_from: sendFrom ?? null })
-    .eq("contact_id", contactId)
-    .eq("client_id", WORKENVO_CLIENT_ID)
-    .eq("type", "intro");
+    .eq("id", messageId)
+    .eq("client_id", WORKENVO_CLIENT_ID);
   if (error) throw new Error(error.message);
 }
 
-// Polls a single email's status by contact id — used right after approveEmail()
-// to reflect the async send outcome (sent/failed) without a full page refetch.
-export async function fetchEmailStatus(contactId: string): Promise<string | null> {
+// Polls a single message's status by its own row id — used right after approveMessageDraft()
+// or sendCustomReply() to reflect the async send outcome without a full thread refetch.
+export async function fetchMessageStatus(messageId: string): Promise<string | null> {
   const { data, error } = await supabaseBrowser
     .from("email_messages")
     .select("status")
-    .eq("contact_id", contactId)
+    .eq("id", messageId)
     .eq("client_id", WORKENVO_CLIENT_ID)
-    .eq("type", "intro")
     .maybeSingle();
   if (error) {
-    console.error("[workenvoData] fetchEmailStatus failed:", error.message);
+    console.error("[workenvoData] fetchMessageStatus failed:", error.message);
     return null;
   }
   return data?.status ?? null;
 }
 
-// The follow-up's send_from is never set here -- wk-send-email falls back to whatever the
-// intro was actually sent from (via provider_meta lookup for threading), which is the only
-// mailbox this can legally send from anyway; the same-thread requirement makes the sender
-// non-negotiable, not a dropdown choice.
-export async function updateFollowUpDraft(
-  contactId: string,
-  updates: { subject: string; body: string }
-): Promise<void> {
-  const { error } = await supabaseBrowser
-    .from("email_messages")
-    .update(updates)
-    .eq("contact_id", contactId)
-    .eq("client_id", WORKENVO_CLIENT_ID)
-    .eq("type", "follow_up");
+// Composing and sending are one action here, unlike the follow-up's draft/review/send --
+// a human is directly authoring this in the moment, so there's no separate draft state to
+// review later. Subject and thread id are resolved server-side (wk-send-custom-reply), same
+// reasoning as the follow-up: not safe to trust the client to get threading-critical fields
+// right.
+export async function sendCustomReply(contactId: string, body: string): Promise<{ messageId: string }> {
+  const { data, error } = await supabaseBrowser.functions.invoke("wk-send-custom-reply", {
+    body: { contact_id: contactId, body },
+  });
   if (error) throw new Error(error.message);
-}
-
-export async function approveFollowUp(contactId: string): Promise<void> {
-  const { error } = await supabaseBrowser
-    .from("email_messages")
-    .update({ status: "approved" })
-    .eq("contact_id", contactId)
-    .eq("client_id", WORKENVO_CLIENT_ID)
-    .eq("type", "follow_up");
-  if (error) throw new Error(error.message);
-}
-
-export async function fetchFollowUpStatus(contactId: string): Promise<string | null> {
-  const { data, error } = await supabaseBrowser
-    .from("email_messages")
-    .select("status")
-    .eq("contact_id", contactId)
-    .eq("client_id", WORKENVO_CLIENT_ID)
-    .eq("type", "follow_up")
-    .maybeSingle();
-  if (error) {
-    console.error("[workenvoData] fetchFollowUpStatus failed:", error.message);
-    return null;
-  }
-  return data?.status ?? null;
+  if (data?.error) throw new Error(data.error);
+  return { messageId: data.message_id };
 }
 
 export type SenderOption = { email: string; name: string };

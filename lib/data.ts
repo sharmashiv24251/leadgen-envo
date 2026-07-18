@@ -26,15 +26,6 @@ export type ProspectStatus =
   | "BOUNCED"
   | "RESPONDED";
 
-export type FollowUpStatus = "draft" | "approved" | "sending" | "sent" | "failed";
-
-export interface FollowUp {
-  id: string;
-  subject: string;
-  body: string;
-  status: FollowUpStatus;
-}
-
 export interface Prospect {
   id: string;
   name: string;
@@ -50,10 +41,37 @@ export interface Prospect {
   body: string;
   intel: string[];
   status: ProspectStatus;
+  /** Only ever read by the mock account to synthesize its thread view (lib/mockData.ts) --
+   * the real account's thread comes from fetchThreadMessages instead. */
   response?: string;
-  /** Present only when a follow-up draft exists and no reply has come in yet (moot once
-   * they've replied) -- see fetchWorkenvoData for the merge logic. */
-  followUp?: FollowUp;
+}
+
+// A contact's full conversation, oldest first: the intro, any follow-up, inbound replies,
+// and human-sent custom replies, all as one ordered timeline (EmailDetail/ThreadView).
+export type ThreadMessageType = "intro" | "follow_up" | "reply" | "custom";
+export type ThreadMessageStatus =
+  | "draft"
+  | "approved"
+  | "sending"
+  | "sent"
+  // Set on an outbound message once its contact has replied (wk-poll-replies) -- the reply
+  // itself renders as its own separate inbound message in the timeline, so this just means
+  // "sent successfully, and also got a reply" for display purposes on this one message.
+  | "replied"
+  | "failed"
+  | "received";
+
+export interface ThreadMessage {
+  id: string;
+  type: ThreadMessageType;
+  direction: "outbound" | "inbound";
+  subject: string;
+  body: string;
+  status: ThreadMessageStatus;
+  /** Null until the first message in the contact's thread actually sends -- gates whether a
+   * sender is still a free choice (no thread yet) or thread-locked (one already exists). */
+  gmailThreadId: string | null;
+  occurredAt: string;
 }
 
 /** Computes the actual calendar date `daysAgo` days back from whenever this runs. */

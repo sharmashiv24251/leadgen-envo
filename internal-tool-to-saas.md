@@ -8,7 +8,10 @@ same way Phase 2 was documented there.
 
 ---
 
-## Phase 1 — Threads, replies, follow-ups
+## Phase 1 — Threads, replies, follow-ups — COMPLETE (2026-07-18)
+
+All four original items done and verified live against real data, not just code review. Detail
+below; skip to Phase 2 unless you need the history.
 
 **Thread/message data model — DONE (2026-07-17).** `emails` renamed to `email_messages` in place
 (simpler than a parallel child table — one table to keep in sync, not two). Dropped
@@ -73,43 +76,52 @@ in the thread, not the global default sender — thread IDs are per-mailbox, so 
 from a different mailbox than the intro would silently fail to thread (or worse, error) regardless
 of everything else being correct.
 
-**Follow-up email — DONE and verified live (2026-07-17).** No `auto_follow_up` flag, no
-`follow_up_wait_days`, no scheduled eligibility job, no "due for follow-up" reminder/notification.
-The follow-up draft is written **at the same time as the intro**, by the same agent invocation —
-`wk-insert-draft` accepts an optional `follow_up: {body}` in its payload (subject is deliberately
-NOT agent-supplied; the row always reuses the intro's own subject server-side, since Gmail's
-thread-matching requires an exact match and that's not something to leave to prompt-following).
-`SKILL.md` updated (`Phase 4b`) to draft the follow-up body in the same pass, no extra Claude Code
-run, no marginal cost.
+**Follow-up email — DONE and verified live, including in real production (2026-07-18).** No
+`auto_follow_up` flag, no `follow_up_wait_days`, no scheduled eligibility job, no "due for
+follow-up" reminder/notification. The follow-up draft is written **at the same time as the
+intro**, by the same agent invocation — `wk-insert-draft` accepts an optional `follow_up: {body}`
+in its payload (subject is deliberately NOT agent-supplied; the row always reuses the intro's own
+subject server-side, since Gmail's thread-matching requires an exact match and that's not
+something to leave to prompt-following). `SKILL.md` updated (`Phase 4b`) to draft the follow-up
+body in the same pass, no extra Claude Code run, no marginal cost. The 2026-07-18 07:00 production
+run drafted real intro+follow-up pairs for two real prospects (Christian Howell/Techary, Tomas
+O'Leary/Origina), subjects matching exactly — confirmed in the database, not just in a test.
 
-**Custom reply send — NOT STARTED.** Still the one open item in Phase 1: no backend endpoint, no
-compose-box UI. Replying to what a prospect actually wrote (as opposed to the pre-drafted
-follow-up) isn't possible from the dashboard yet.
+**Custom reply send — DONE and verified live (2026-07-18).** New `wk-send-custom-reply` Edge
+Function (JWT-gated — this one's called from the browser via `supabase-js`, so `verify_jwt: true`
+is correct here, unlike the agent-facing `wk-*` functions which use a bare `x-agent-token` header
+instead and need `verify_jwt: false`). Subject and thread id resolved server-side from the
+contact's earliest sent message, same reasoning as the follow-up. Inserts as `status='approved'`
+and lets the existing send trigger fire `wk-send-email` — no duplicated sending logic at all.
+Tested for real against a live thread: sent, correctly threaded.
 
-Frontend: `Prospect.followUp`, a new `FollowUpCard` component (edit/save/send, no sender picker —
-thread-locked, not a per-send choice), wired into `EmailDetail.tsx`. `fetchWorkenvoData` hides
-`followUp` entirely once a reply exists — a follow-up is moot once someone's responded, so this is
-a single conditional in the data layer rather than duplicated UI logic. It just sits there,
-editable, until a human sends it — no day-gating, no banner.
+**Thread view UI — rewritten (2026-07-18), not originally a Phase 1 line item but became
+necessary once custom replies existed.** Replaced the old fixed layout (one editable email-draft
+box + a single "latest reply" card + a separate floating follow-up card) with `ThreadView`, a
+single scrollable timeline rendering every message for a contact in chronological order — intro,
+follow-up, replies, custom sends, interleaved exactly as they actually happened. `FollowUpCard`
+deleted; its edit/save/send logic generalized into one `DraftMessageCard` keyed by the message's
+own row id instead of contact+type, which also retires the whole class of "accidentally touched
+the sibling row" bug the old contact+type-scoped functions were exposed to. `Prospect.followUp`/
+`Prospect.response` (the old single-reply-only field) removed from the real data path; the mock
+account still uses `Prospect.response` to synthesize an equivalent thread, since its data model
+never changed.
 
-Not yet done: a live end-to-end test (disposable contact, real inbox) to actually watch an intro +
-follow-up land threaded correctly, rather than trust code review alone.
+Also fixed along the way: a follow-up draft now hides itself once the conversation has moved past
+it — either the prospect replied, or a custom message already went out. Restores a design decision
+made earlier in Phase 1 that had been accidentally dropped during the `ThreadView` rewrite; checked
+against real data (no false hides on the 3 real follow-up drafts that exist today, since none of
+their threads have moved on yet).
 
-**Custom reply send.** For anything outside the intro/follow-up drafts — e.g. replying to what a
-prospect actually wrote back, or sending an ad-hoc note into an existing thread. A free-text
-compose box in the dashboard thread view, human-authored, calling the exact same send-into-thread
-primitive as the follow-up send (correct `In-Reply-To`/`References`/`threadId`, same thread, never
-a new one). This is the same primitive with a human typing the body instead of a stored draft.
-
-Same persistence as everything else in the thread: the primitive writes a row into
-`email_messages` (`type='custom'`, `direction='outbound'`) as part of sending it, no different from
-how intro/follow-up/inbound-reply rows get saved. Without this the thread view would go stale the
-moment a human sends something outside the pre-drafted flow — the whole point of the thread model
-is that it's the complete record, not just what the agent drafted.
-
-And yes, it shows up in the UI — the thread view is just rendering whatever's in `email_messages`
-for that contact, in order. A custom send is a row in that same table like everything else, so it
-appears in the thread the moment it's sent with no separate display logic needed for it.
+**Known, deliberately deferred, not a gap:** capturing a message sent by replying directly from a
+real Gmail client (bypassing the dashboard entirely) isn't built. Two separate reasons stack:
+nothing inserts an `email_messages` row for it in the first place, and `wk-poll-replies` explicitly
+skips any message *from* our own mailbox (that check exists to avoid mistaking our own sends for
+prospect replies, with no way to distinguish "our automated send" from "operator typed this
+directly in Gmail"). Discussed and deliberately parked — real future need (most likely once
+attachments/rich content force a bypass to raw Gmail), but speculative today. If revisited, a
+manual "reconcile this thread" action a human triggers on demand is a much cheaper path than an
+always-on background scan of every mailbox's Sent folder.
 
 ---
 

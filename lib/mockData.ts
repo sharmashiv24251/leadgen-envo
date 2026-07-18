@@ -7,6 +7,7 @@ import {
   type ActivityEvent,
   type DashboardStats,
   type Prospect,
+  type ThreadMessage,
 } from "@/lib/data";
 import type { RunRequest, SenderOption } from "@/lib/workenvoData";
 
@@ -55,51 +56,116 @@ export async function fetchMockData(): Promise<{
   };
 }
 
-export async function updateEmailDraft(
-  id: string,
+// Synthetic thread built from this account's flat Prospect fields (subject/body/response) --
+// there's no email_messages table behind this account, so "the thread" is just those fields
+// reshaped into the same ordered-message form the real account's ThreadView expects. Message
+// ids encode which Prospect field they came from (`${contactId}::intro`/`::reply`), so the
+// mutation functions below can parse them back without a second store to keep in sync.
+const MOCK_THREAD_ID = "mock-thread";
+
+function introStatusFor(prospect: Prospect): ThreadMessage["status"] {
+  if (prospect.status === "SENDING") return "approved";
+  if (prospect.status === "DELIVERED" || prospect.status === "RESPONDED") return "sent";
+  if (prospect.status === "BOUNCED") return "failed";
+  return "draft";
+}
+
+type MockCustomReply = { id: string; body: string; sentAt: string };
+const mockCustomReplies = new Map<string, MockCustomReply[]>();
+
+export async function fetchThreadMessages(contactId: string): Promise<ThreadMessage[]> {
+  const prospect = mockProspects.find((p) => p.id === contactId);
+  if (!prospect) return [];
+
+  const introStatus = introStatusFor(prospect);
+  const baseTime = Date.now() - prospect.daysAgo * 86_400_000;
+  const messages: ThreadMessage[] = [
+    {
+      id: `${contactId}::intro`, type: "intro", direction: "outbound",
+      subject: prospect.subject, body: prospect.body, status: introStatus,
+      gmailThreadId: introStatus === "sent" ? MOCK_THREAD_ID : null,
+      occurredAt: new Date(baseTime).toISOString(),
+    },
+  ];
+
+  if (prospect.response) {
+    messages.push({
+      id: `${contactId}::reply`, type: "reply", direction: "inbound",
+      subject: `Re: ${prospect.subject}`, body: prospect.response, status: "received",
+      gmailThreadId: MOCK_THREAD_ID, occurredAt: new Date(baseTime + 3_600_000).toISOString(),
+    });
+  }
+
+  for (const custom of mockCustomReplies.get(contactId) ?? []) {
+    messages.push({
+      id: custom.id, type: "custom", direction: "outbound",
+      subject: `Re: ${prospect.subject}`, body: custom.body, status: "sent",
+      gmailThreadId: MOCK_THREAD_ID, occurredAt: custom.sentAt,
+    });
+  }
+
+  return messages.sort((a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime());
+}
+
+// Only the intro is ever editable/approvable in this account -- no seed prospect carries a
+// follow-up draft, so `::intro` is the only message-id shape these need to recognize.
+function parseMockIntroId(messageId: string): string | null {
+  const [contactId, kind] = messageId.split("::");
+  return kind === "intro" ? contactId : null;
+}
+
+export async function updateMessageDraft(
+  messageId: string,
   updates: { subject: string; body: string }
 ): Promise<void> {
-  mockProspects = mockProspects.map((p) => (p.id === id ? { ...p, ...updates } : p));
+  const contactId = parseMockIntroId(messageId);
+  if (!contactId) return;
+  mockProspects = mockProspects.map((p) => (p.id === contactId ? { ...p, ...updates } : p));
 }
 
 const pendingSendTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 // Best-case send simulation: SENDING for a beat, then DELIVERED — no failure path,
 // since this account has no real mail server to fail against.
-export async function approveEmail(id: string): Promise<void> {
-  mockProspects = mockProspects.map((p) => (p.id === id ? { ...p, status: "SENDING" } : p));
+export async function approveMessageDraft(messageId: string, _sendFrom?: string): Promise<void> {
+  const contactId = parseMockIntroId(messageId);
+  if (!contactId) return;
+  mockProspects = mockProspects.map((p) => (p.id === contactId ? { ...p, status: "SENDING" } : p));
 
-  const existing = pendingSendTimers.get(id);
+  const existing = pendingSendTimers.get(contactId);
   if (existing) clearTimeout(existing);
 
   const timer = setTimeout(() => {
-    mockProspects = mockProspects.map((p) => (p.id === id ? { ...p, status: "DELIVERED" } : p));
-    pendingSendTimers.delete(id);
+    mockProspects = mockProspects.map((p) => (p.id === contactId ? { ...p, status: "DELIVERED" } : p));
+    pendingSendTimers.delete(contactId);
   }, 1400);
-  pendingSendTimers.set(id, timer);
+  pendingSendTimers.set(contactId, timer);
 }
 
-// Mirrors the backend-status strings fetchEmailStatus's real counterpart returns, so
-// EmailDetail's TERMINAL_SEND_STATUSES check works unchanged for this account too.
-export async function fetchEmailStatus(id: string): Promise<string | null> {
-  const prospect = mockProspects.find((p) => p.id === id);
-  if (!prospect) return null;
-  if (prospect.status === "SENDING") return "sending";
-  if (prospect.status === "DELIVERED") return "sent";
-  return "draft";
+// Mirrors the backend-status strings fetchMessageStatus's real counterpart returns, so
+// ThreadView's terminal-status check works unchanged for this account too.
+export async function fetchMessageStatus(messageId: string): Promise<string | null> {
+  const contactId = parseMockIntroId(messageId);
+  if (contactId) {
+    const prospect = mockProspects.find((p) => p.id === contactId);
+    if (!prospect) return null;
+    if (prospect.status === "SENDING") return "sending";
+    if (prospect.status === "DELIVERED") return "sent";
+    return "draft";
+  }
+  // A custom reply: mock sends are synchronous (already appended as "sent" below), so
+  // there's nothing to actually poll for.
+  return "sent";
 }
 
-// No seed prospect in lib/data.ts carries a followUp, so these paths are never actually
-// reachable from the demo UI -- exist only to satisfy outreachApi's dispatcher contract.
-export async function updateFollowUpDraft(
-  _contactId: string,
-  _updates: { subject: string; body: string }
-): Promise<void> {}
-
-export async function approveFollowUp(_contactId: string): Promise<void> {}
-
-export async function fetchFollowUpStatus(_contactId: string): Promise<string | null> {
-  return null;
+// Composing and sending are one action, same as the real account -- appended straight in as
+// already "sent" since there's no real mail server here to simulate a delay against.
+export async function sendCustomReply(contactId: string, body: string): Promise<{ messageId: string }> {
+  const list = mockCustomReplies.get(contactId) ?? [];
+  const id = `${contactId}::custom::${list.length}`;
+  list.push({ id, body, sentAt: new Date().toISOString() });
+  mockCustomReplies.set(contactId, list);
+  return { messageId: id };
 }
 
 export async function fetchSenderOptions(): Promise<SenderOption[]> {

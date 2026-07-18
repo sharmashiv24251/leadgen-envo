@@ -12,18 +12,26 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useState } from "react";
 import type { ChipTone } from "@/components/Chip";
 import Chip from "@/components/Chip";
 import { FunnelBoardSkeleton } from "@/components/Skeleton";
 import type { ProspectListItem } from "@/lib/data";
-import { FUNNEL_COLUMNS, LOST_REASONS, MANUAL_STAGES, type FunnelStage, type LostReason } from "@/lib/funnel";
+import {
+  FUNNEL_COLUMNS,
+  getFunnelColumn,
+  LOST_REASONS,
+  MANUAL_STAGES,
+  type FunnelStage,
+  type LostReason,
+} from "@/lib/funnel";
 import { setContactStage } from "@/lib/outreachApi";
 import { queryKeys } from "@/lib/queryKeys";
 import { statusTone } from "@/lib/status";
 import { useAccountMode, useAllProspectsLean } from "@/lib/useAccountData";
 
-const DOT_BG: Record<ChipTone | "accent", string> = {
+const DOT_BG: Record<ChipTone, string> = {
   success: "bg-success",
   pending: "bg-pending",
   neutral: "bg-ink-faint",
@@ -32,6 +40,7 @@ const DOT_BG: Record<ChipTone | "accent", string> = {
 };
 
 function FunnelCardContent({ prospect }: { prospect: ProspectListItem }) {
+  const stageCol = getFunnelColumn(prospect.stage);
   return (
     <div className="flex flex-col gap-2 rounded-2xl border border-border bg-surface p-3.5 shadow-[var(--shadow-panel-sm)]">
       <div className="flex items-start justify-between gap-2">
@@ -41,22 +50,29 @@ function FunnelCardContent({ prospect }: { prospect: ProspectListItem }) {
       <span className="truncate text-xs text-ink-muted">
         {prospect.title} · {prospect.company}
       </span>
+      <div>
+        <Chip tone={stageCol.tone}>{stageCol.label}</Chip>
+      </div>
     </div>
   );
 }
 
+// A plain click (no meaningful pointer movement) navigates to the prospect's detail page; a
+// real drag is captured by dnd-kit instead -- the sensor's activationConstraint below (6px)
+// is what lets both coexist on the same element without one blocking the other.
 function FunnelCard({ prospect }: { prospect: ProspectListItem }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: prospect.id });
 
   return (
-    <div
+    <Link
+      href={`/emails/${prospect.id}`}
       ref={setNodeRef}
       {...listeners}
       {...attributes}
-      className={`touch-none transition-opacity active:cursor-grabbing ${isDragging ? "opacity-30" : ""}`}
+      className={`block touch-none transition-opacity active:cursor-grabbing ${isDragging ? "opacity-30" : ""}`}
     >
       <FunnelCardContent prospect={prospect} />
-    </div>
+    </Link>
   );
 }
 

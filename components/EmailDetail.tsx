@@ -12,6 +12,7 @@ import ThreadView from "@/components/ThreadView";
 import Tooltip from "@/components/Tooltip";
 import { copySelectionOr } from "@/lib/clipboard";
 import type { Prospect } from "@/lib/data";
+import { getFunnelColumn } from "@/lib/funnel";
 import { fetchSenderOptions } from "@/lib/outreachApi";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAccountMode } from "@/lib/useAccountData";
@@ -87,6 +88,9 @@ export default function EmailDetail({
             </div>
             <div className="flex flex-col items-end gap-2">
               <div className="flex items-center gap-2">
+                <Chip tone={getFunnelColumn(prospect.stage).tone}>
+                  {getFunnelColumn(prospect.stage).label}
+                </Chip>
                 <Chip tone={prospect.emailVerified ? "success" : "neutral"}>
                   {prospect.emailVerified ? "Verified" : "Unverified"}
                 </Chip>

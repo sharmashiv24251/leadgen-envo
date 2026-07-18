@@ -17,7 +17,7 @@ export type LostReason = "no_response" | "no_interest" | "not_a_match";
 // back to via a null override).
 export const MANUAL_STAGES: FunnelStage[] = ["meeting_booked", "contract", "deal_lost"];
 
-export const FUNNEL_COLUMNS: { key: FunnelStage; label: string; tone: ChipTone | "accent" }[] = [
+export const FUNNEL_COLUMNS: { key: FunnelStage; label: string; tone: ChipTone }[] = [
   { key: "leads", label: "Leads", tone: "neutral" },
   { key: "intro_sent", label: "Intro sent", tone: "neutral" },
   { key: "follow_up_sent", label: "Follow-up sent", tone: "pending" },
@@ -25,6 +25,13 @@ export const FUNNEL_COLUMNS: { key: FunnelStage; label: string; tone: ChipTone |
   { key: "contract", label: "Contract", tone: "success" },
   { key: "deal_lost", label: "Deal lost", tone: "danger" },
 ];
+
+// Shared by any UI that needs to render a stage as a label + tone (sidebar row chip, Funnel
+// card chip, detail-page chip) -- every FunnelStage has a matching FUNNEL_COLUMNS entry by
+// construction, so the fallback here is just a defensive non-null guard, never real data.
+export function getFunnelColumn(stage: FunnelStage): { key: FunnelStage; label: string; tone: ChipTone } {
+  return FUNNEL_COLUMNS.find((c) => c.key === stage) ?? FUNNEL_COLUMNS[0];
+}
 
 export const LOST_REASONS: { key: LostReason; label: string }[] = [
   { key: "no_response", label: "No response" },

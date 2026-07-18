@@ -8,7 +8,18 @@ import type { Account } from "@/lib/auth";
 export const queryKeys = {
   workenvo: {
     all: ["workenvo"] as const,
-    data: () => [...queryKeys.workenvo.all, "data"] as const,
+    // Prefix only (no filter suffix) -- pass to invalidateQueries to match every filter
+    // combination at once (react-query invalidates by prefix match by default).
+    prospectsListPrefix: () => [...queryKeys.workenvo.all, "prospects-list"] as const,
+    prospectsList: (status: string | null, stage: string | null) =>
+      [...queryKeys.workenvo.prospectsListPrefix(), status ?? "all", stage ?? "all"] as const,
+    prospectDetail: (contactId: string) =>
+      [...queryKeys.workenvo.all, "prospect-detail", contactId] as const,
+    latestProspectId: (status: string | null, stage: string | null) =>
+      [...queryKeys.workenvo.all, "latest-prospect-id", status ?? "all", stage ?? "all"] as const,
+    allProspectsLean: () => [...queryKeys.workenvo.all, "all-prospects-lean"] as const,
+    dashboardStats: () => [...queryKeys.workenvo.all, "dashboard-stats"] as const,
+    recentActivity: () => [...queryKeys.workenvo.all, "recent-activity"] as const,
     senderOptions: () => [...queryKeys.workenvo.all, "sender-options"] as const,
     autoSend: () => [...queryKeys.workenvo.all, "auto-send"] as const,
     defaultSender: () => [...queryKeys.workenvo.all, "default-sender"] as const,
@@ -17,10 +28,21 @@ export const queryKeys = {
     messageStatus: (messageId: string) =>
       [...queryKeys.workenvo.all, "message-status", messageId] as const,
     latestRunRequest: () => [...queryKeys.workenvo.all, "run-request", "latest"] as const,
+    contactNotes: (contactId: string) =>
+      [...queryKeys.workenvo.all, "contact-notes", contactId] as const,
   },
   mock: {
     all: ["mock"] as const,
-    data: () => [...queryKeys.mock.all, "data"] as const,
+    prospectsListPrefix: () => [...queryKeys.mock.all, "prospects-list"] as const,
+    prospectsList: (status: string | null, stage: string | null) =>
+      [...queryKeys.mock.prospectsListPrefix(), status ?? "all", stage ?? "all"] as const,
+    prospectDetail: (contactId: string) =>
+      [...queryKeys.mock.all, "prospect-detail", contactId] as const,
+    latestProspectId: (status: string | null, stage: string | null) =>
+      [...queryKeys.mock.all, "latest-prospect-id", status ?? "all", stage ?? "all"] as const,
+    allProspectsLean: () => [...queryKeys.mock.all, "all-prospects-lean"] as const,
+    dashboardStats: () => [...queryKeys.mock.all, "dashboard-stats"] as const,
+    recentActivity: () => [...queryKeys.mock.all, "recent-activity"] as const,
     senderOptions: () => [...queryKeys.mock.all, "sender-options"] as const,
     autoSend: () => [...queryKeys.mock.all, "auto-send"] as const,
     defaultSender: () => [...queryKeys.mock.all, "default-sender"] as const,
@@ -29,6 +51,8 @@ export const queryKeys = {
     messageStatus: (messageId: string) =>
       [...queryKeys.mock.all, "message-status", messageId] as const,
     latestRunRequest: () => [...queryKeys.mock.all, "run-request", "latest"] as const,
+    contactNotes: (contactId: string) =>
+      [...queryKeys.mock.all, "contact-notes", contactId] as const,
   },
   forAccount(account: Account) {
     return account === "workenvo" ? queryKeys.workenvo : queryKeys.mock;

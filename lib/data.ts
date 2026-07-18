@@ -1,3 +1,7 @@
+import { computeEffectiveStage, type FunnelStage, type LostReason } from "@/lib/funnel";
+
+export type { FunnelStage, LostReason };
+
 export interface DashboardStats {
   emailsDelivered: number;
   bounceRatePct: number;
@@ -26,6 +30,41 @@ export type ProspectStatus =
   | "BOUNCED"
   | "RESPONDED";
 
+// Shared between the sidebar's filter dropdown (components/EmailSidebar.tsx) and the detail
+// page (app/emails/[id]/page.tsx) -- both need to parse the same URL param into the exact same
+// typed value so the detail page can look up the sidebar's already-loaded query cache by an
+// identical key.
+export const STATUS_FILTERS: { value: ProspectStatus; label: string }[] = [
+  { value: "DRAFTED", label: "Drafted" },
+  { value: "SENDING", label: "Sending" },
+  { value: "DELIVERED", label: "Delivered" },
+  { value: "BOUNCED", label: "Bounced" },
+  { value: "RESPONDED", label: "Responded" },
+];
+
+export function parseStatusFilter(raw: string | null | undefined): ProspectStatus | null {
+  const upper = raw?.toUpperCase();
+  return STATUS_FILTERS.find((f) => f.value === upper)?.value ?? null;
+}
+
+// The sidebar list is now paginated (40/page) and only ever renders these fields -- fetching
+// full body/why_this_angle/contact detail for every row in the list would defeat the point.
+// The detail page fetches the full Prospect shape separately, by id, on demand.
+export interface ProspectListItem {
+  id: string;
+  name: string;
+  title: string;
+  company: string;
+  subject: string;
+  status: ProspectStatus;
+  /** Free from the same query (prospect_feed already computes it for filtering) -- the sidebar
+   * row doesn't render it, but the Funnel board's unpaginated fetch (lib/useAccountData.ts's
+   * useAllProspectsLean) needs it to bucket cards into columns. */
+  stage: FunnelStage;
+  /** Days before today this email was drafted. 0 = today, 1 = yesterday. */
+  daysAgo: number;
+}
+
 export interface Prospect {
   id: string;
   name: string;
@@ -41,6 +80,9 @@ export interface Prospect {
   body: string;
   intel: string[];
   status: ProspectStatus;
+  /** The funnel/Kanban stage -- see lib/funnel.ts for how this is derived vs. manually set. */
+  stage: FunnelStage;
+  lostReason: LostReason | null;
   /** Only ever read by the mock account to synthesize its thread view (lib/mockData.ts) --
    * the real account's thread comes from fetchThreadMessages instead. */
   response?: string;
@@ -74,11 +116,29 @@ export interface ThreadMessage {
   occurredAt: string;
 }
 
+// Freeform bookkeeping a rep jots down about a person -- a log, not a single overwritable
+// field. Append-only: no edit/delete in v1 (backend/devinstruction.md's "notes" model).
+export interface ContactNote {
+  id: string;
+  author: string;
+  text: string;
+  createdAt: string;
+}
+
 /** Computes the actual calendar date `daysAgo` days back from whenever this runs. */
 export function dateGroupLabel(daysAgo: number): string {
   const date = new Date();
   date.setDate(date.getDate() - daysAgo);
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+export function formatRelativeTime(iso: string): string {
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
 }
 
 export const activityFeed: ActivityEvent[] = [
@@ -119,7 +179,7 @@ export const activityFeed: ActivityEvent[] = [
   },
 ];
 
-export const prospects: Prospect[] = [
+const rawProspects: Omit<Prospect, "stage" | "lostReason">[] = [
   {
     id: "brenna-shields",
     name: "Brenna Shields",
@@ -509,14 +569,27 @@ Niall`,
   },
 ];
 
+// No seed prospect has a follow-up or a manual stage override, so this only ever resolves to
+// "leads" or "intro_sent" -- the mock account has no concept of follow-ups (lib/mockData.ts).
+export const prospects: Prospect[] = rawProspects.map((p) => ({
+  ...p,
+  stage: computeEffectiveStage({
+    manualStage: null,
+    introSent: p.status !== "DRAFTED",
+    followUpSent: false,
+  }),
+  lostReason: null,
+}));
+
 // SENDING is deliberately excluded from both — it means the send is still in
 // flight (approved/sending backend status), not yet actually dispatched, so it
 // must not count toward "Emails Delivered" or the bounce/reply-rate denominator.
 const sentStatuses: ProspectStatus[] = ["DELIVERED", "BOUNCED", "RESPONDED"];
 const deliveredStatuses: ProspectStatus[] = ["DELIVERED", "RESPONDED"];
 
-/** Pure aggregation so real (Supabase-backed) prospect lists can reuse the same math. */
-export function computeDashboardStats(list: Prospect[]): DashboardStats {
+/** Pure aggregation -- only ever reads `.status`, so callers can pass a lean status-only
+ * projection instead of full Prospect rows (the KPI query doesn't need body/why_this_angle). */
+export function computeDashboardStats(list: { status: ProspectStatus }[]): DashboardStats {
   const sentCount = list.filter((p) => sentStatuses.includes(p.status)).length;
   const deliveredCount = list.filter((p) => deliveredStatuses.includes(p.status)).length;
   const bouncedCount = list.filter((p) => p.status === "BOUNCED").length;

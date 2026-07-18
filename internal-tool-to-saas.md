@@ -13,6 +13,14 @@ same way Phase 2 was documented there.
 All four original items done and verified live against real data, not just code review. Detail
 below; skip to Phase 2 unless you need the history.
 
+**User-QA'd, not just self-tested (2026-07-18).** Found and fixed one real bug this way that
+none of my own curl/SQL-based testing could have caught: `wk-send-custom-reply` had no CORS
+headers, so browser calls failed while direct curl calls to the same endpoint succeeded — CORS is
+browser-enforced only, invisible to curl. Fixed (standard `Access-Control-Allow-*` headers +
+explicit `OPTIONS` handling), then Shivansh personally exercised custom replies across multiple
+real email accounts and confirmed threading holds up end to end. This is the strongest signal
+Phase 1 has had — real usage, not a synthetic check.
+
 **Thread/message data model — DONE (2026-07-17).** `emails` renamed to `email_messages` in place
 (simpler than a parallel child table — one table to keep in sync, not two). Dropped
 `emails_one_per_contact`; added `type` (`intro`/`follow_up`/`reply`/`custom`) and `direction`

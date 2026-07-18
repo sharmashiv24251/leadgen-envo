@@ -1,19 +1,25 @@
 "use client";
 
+import { useInfiniteQuery, useQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { useLayoutEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { getAccount, isAuthenticated, type Account } from "@/lib/auth";
 import {
-  activityFeed as mockActivity,
-  dashboardStats as mockStats,
-  prospects as mockProspects,
   type ActivityEvent,
   type DashboardStats,
+  type FunnelStage,
   type Prospect,
+  type ProspectListItem,
+  type ProspectStatus,
 } from "@/lib/data";
-import { fetchMockData } from "@/lib/mockData";
+import {
+  fetchAllProspectsLean,
+  fetchDashboardStats,
+  fetchProspectById,
+  fetchProspectsPage,
+  fetchRecentActivity,
+  type ProspectPage,
+} from "@/lib/outreachApi";
 import { queryKeys } from "@/lib/queryKeys";
-import { fetchWorkenvoData } from "@/lib/workenvoData";
 
 // The account check must happen client-side (localStorage) and can't run during SSR/the
 // first client render without risking a hydration mismatch. useLayoutEffect flips this
@@ -31,42 +37,96 @@ export function useIsWorkenvoAccount(): boolean {
   return useAccountMode() === "workenvo";
 }
 
-// Both hooks below share one query key per account: prospects/stats/activity all come from
-// the same fetch, so mounting the dashboard and the emails sidebar at once (or navigating
-// between them within the staleTime window) reuses one cached fetch instead of two.
-export function useProspects(): {
-  prospects: Prospect[];
+// Infinite-scroll, 40/page (lib/workenvoData.ts's PAGE_SIZE) -- one query per (account, filter)
+// combination, dispatched through lib/outreachApi.ts so this hook doesn't need to know which
+// account is active, same pattern AutoSendToggle/EmailDetail already use.
+export function useProspectsList(filters: {
+  status: ProspectStatus | null;
+  stage: FunnelStage | null;
+}): {
+  items: Prospect[];
   loading: boolean;
-  refetch: () => void;
+  isFetchingNextPage: boolean;
+  hasNextPage: boolean;
+  fetchNextPage: () => void;
 } {
   const account = useAccountMode();
-  const isWorkenvo = account === "workenvo";
+  const keys = queryKeys.forAccount(account);
 
-  const workenvoQuery = useQuery({
-    queryKey: queryKeys.workenvo.data(),
-    queryFn: fetchWorkenvoData,
-    enabled: isWorkenvo,
-    // This data can change from outside the app (the backend VM drafting new emails,
-    // a teammate approving one) — every mount should hit Supabase, not just serve
-    // whatever's still under staleTime. Concurrent mounts on the same key still share
-    // one in-flight request, so this doesn't cost extra fetches, just guarantees freshness.
+  const query = useInfiniteQuery({
+    queryKey: keys.prospectsList(filters.status, filters.stage),
+    queryFn: ({ pageParam }) =>
+      fetchProspectsPage({ cursor: pageParam, status: filters.status, stage: filters.stage }),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
+    // This data can change from outside the app (the backend VM drafting new emails, a
+    // teammate approving one) — every mount should hit Supabase, not just serve whatever's
+    // still under staleTime.
     refetchOnMount: "always",
   });
-  const mockQuery = useQuery({
-    queryKey: queryKeys.mock.data(),
-    queryFn: fetchMockData,
-    enabled: !isWorkenvo,
-    refetchOnMount: "always",
-  });
-
-  const active = isWorkenvo ? workenvoQuery : mockQuery;
 
   return {
-    prospects: active.data?.prospects ?? mockProspects,
-    loading: active.isLoading,
-    refetch: () => void active.refetch(),
+    items: query.data?.pages.flatMap((page) => page.items) ?? [],
+    loading: query.isLoading,
+    isFetchingNextPage: query.isFetchingNextPage,
+    hasNextPage: !!query.hasNextPage,
+    fetchNextPage: () => void query.fetchNextPage(),
   };
 }
+
+// Unpaginated, lean -- only for the Funnel board, which needs every prospect at once to bucket
+// into Kanban columns (a "40 at a time" feed doesn't fit that view).
+export function useAllProspectsLean(): { items: ProspectListItem[]; loading: boolean } {
+  const account = useAccountMode();
+  const keys = queryKeys.forAccount(account);
+
+  const query = useQuery({
+    queryKey: keys.allProspectsLean(),
+    queryFn: fetchAllProspectsLean,
+    refetchOnMount: "always",
+  });
+
+  return { items: query.data ?? [], loading: query.isLoading };
+}
+
+// The detail page's own fetch by id. `listFilters` (the same status/stage the sidebar link that
+// led here was showing, read from the URL) lets this seed itself instantly from that
+// already-loaded, now-rich sidebar page instead of always paying for a second round-trip --
+// only falls back to a fresh fetchProspectById when this contact isn't in that cache (a deep
+// link, or a filter combination that was never loaded).
+export function useProspectDetail(
+  contactId: string,
+  listFilters?: { status: ProspectStatus | null; stage: FunnelStage | null }
+): {
+  prospect: Prospect | null;
+  loading: boolean;
+} {
+  const account = useAccountMode();
+  const keys = queryKeys.forAccount(account);
+  const queryClient = useQueryClient();
+
+  const query = useQuery({
+    queryKey: keys.prospectDetail(contactId),
+    queryFn: () => fetchProspectById(contactId),
+    initialData: () => {
+      if (!listFilters) return undefined;
+      const cached = queryClient.getQueryData<InfiniteData<ProspectPage>>(
+        keys.prospectsList(listFilters.status, listFilters.stage)
+      );
+      return cached?.pages.flatMap((page) => page.items).find((p) => p.id === contactId);
+    },
+    refetchOnMount: "always",
+  });
+
+  return { prospect: query.data ?? null, loading: query.isLoading };
+}
+
+const EMPTY_STATS: DashboardStats = {
+  emailsDelivered: 0,
+  bounceRatePct: 0,
+  replyRatePct: 0,
+  totalDrafted: 0,
+};
 
 export function useDashboardData(): {
   stats: DashboardStats;
@@ -74,26 +134,22 @@ export function useDashboardData(): {
   loading: boolean;
 } {
   const account = useAccountMode();
-  const isWorkenvo = account === "workenvo";
+  const keys = queryKeys.forAccount(account);
 
-  const workenvoQuery = useQuery({
-    queryKey: queryKeys.workenvo.data(),
-    queryFn: fetchWorkenvoData,
-    enabled: isWorkenvo,
+  const statsQuery = useQuery({
+    queryKey: keys.dashboardStats(),
+    queryFn: fetchDashboardStats,
     refetchOnMount: "always",
   });
-  const mockQuery = useQuery({
-    queryKey: queryKeys.mock.data(),
-    queryFn: fetchMockData,
-    enabled: !isWorkenvo,
+  const activityQuery = useQuery({
+    queryKey: keys.recentActivity(),
+    queryFn: fetchRecentActivity,
     refetchOnMount: "always",
   });
-
-  const active = isWorkenvo ? workenvoQuery : mockQuery;
 
   return {
-    stats: active.data?.stats ?? mockStats,
-    activity: active.data?.activity ?? mockActivity,
-    loading: active.isLoading,
+    stats: statsQuery.data ?? EMPTY_STATS,
+    activity: activityQuery.data ?? [],
+    loading: statsQuery.isLoading || activityQuery.isLoading,
   };
 }

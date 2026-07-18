@@ -9,6 +9,37 @@ function formatClock(date: Date) {
   return date.toLocaleTimeString("en-US", { hour12: false });
 }
 
+// The app's only top-level nav -- DESIGN.md deliberately has no persistent sidebar outside
+// /emails, so switching between these three sections lives here instead.
+const NAV_TABS: { href: string; label: string; match: (pathname: string) => boolean }[] = [
+  { href: "/", label: "Command Center", match: (p) => p === "/" },
+  { href: "/emails", label: "Outreach Feed", match: (p) => p.startsWith("/emails") },
+  { href: "/funnel", label: "Funnel", match: (p) => p.startsWith("/funnel") },
+];
+
+function NavTabs({ pathname }: { pathname: string }) {
+  return (
+    <div className="hidden items-center gap-1 sm:flex">
+      {NAV_TABS.map((tab) => {
+        const isActive = tab.match(pathname);
+        return (
+          <Link
+            key={tab.href}
+            href={tab.href}
+            className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors active:scale-[0.96] ${
+              isActive
+                ? "bg-accent-dim text-accent"
+                : "text-ink-muted hover:bg-surface-raised hover:text-ink"
+            }`}
+          >
+            {tab.label}
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function TopBar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -31,9 +62,9 @@ export default function TopBar() {
   }
 
   const brandName = account === "workenvo" ? "Workenvo" : "thehrcompany";
-  const section = pathname?.startsWith("/emails") ? "Outreach Feed" : "Command Center";
+  const section = NAV_TABS.find((tab) => tab.match(pathname ?? "/"))?.label ?? "Command Center";
   const showBackLink = pathname?.startsWith("/emails");
-  const showSignOut = account !== null && pathname !== "/login";
+  const showNav = account !== null && pathname !== "/login";
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border bg-surface px-4 sm:px-6">
@@ -57,8 +88,9 @@ export default function TopBar() {
           <span className="hidden shrink-0 text-ink-faint sm:inline" aria-hidden>
             /
           </span>
-          <span className="truncate font-medium tracking-tight text-ink">{section}</span>
+          <span className="truncate font-medium tracking-tight text-ink sm:hidden">{section}</span>
         </span>
+        {showNav && <NavTabs pathname={pathname ?? "/"} />}
       </div>
 
       <div className="flex shrink-0 items-center gap-3 sm:gap-4">
@@ -68,7 +100,7 @@ export default function TopBar() {
         >
           {time ?? "--:--:--"}
         </span>
-        {showSignOut && (
+        {showNav && (
           <button
             type="button"
             onClick={handleSignOut}

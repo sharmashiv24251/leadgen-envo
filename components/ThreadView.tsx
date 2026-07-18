@@ -338,8 +338,14 @@ export default function ThreadView({
   });
 
   function refetch() {
+    // A send/edit can change this contact's status (and so which sidebar filter/Funnel column
+    // it belongs in) -- invalidate every surface that could be showing it, not just this thread.
     queryClient.invalidateQueries({ queryKey: keys.threadMessages(contactId) });
-    queryClient.invalidateQueries({ queryKey: keys.data() });
+    queryClient.invalidateQueries({ queryKey: keys.prospectDetail(contactId) });
+    queryClient.invalidateQueries({ queryKey: keys.prospectsListPrefix() });
+    queryClient.invalidateQueries({ queryKey: keys.allProspectsLean() });
+    queryClient.invalidateQueries({ queryKey: keys.dashboardStats() });
+    queryClient.invalidateQueries({ queryKey: keys.recentActivity() });
   }
 
   if (isLoading) {

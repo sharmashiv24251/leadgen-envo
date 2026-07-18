@@ -5,17 +5,89 @@ import {
   activityFeed as seedActivity,
   prospects as seedProspects,
   type ActivityEvent,
+  type ContactNote,
   type DashboardStats,
   type Prospect,
+  type ProspectListItem,
+  type ProspectStatus,
   type ThreadMessage,
 } from "@/lib/data";
-import type { RunRequest, SenderOption } from "@/lib/workenvoData";
+import { computeEffectiveStage, type FunnelStage, type LostReason } from "@/lib/funnel";
+import type { ProspectPage, RunRequest, SenderOption } from "@/lib/workenvoData";
 
 // In-memory store for the thehrcompany account — there's no backend behind this login,
 // so edits/sends need to persist for the session somewhere. Seeded once from the static
 // mock dataset; every mutation below updates this array so the UI reflects what the user
 // just did instead of snapping back to the seed data on the next fetch.
 let mockProspects: Prospect[] = seedProspects.map((p) => ({ ...p }));
+
+// Manual funnel-stage overrides for this account, same model as the real one (lib/funnel.ts) --
+// there's no follow-up concept in mock data, so followUpSent is always false here.
+const mockStageOverrides = new Map<string, { stage: FunnelStage; lostReason: LostReason | null }>();
+
+export async function setContactStage(
+  contactId: string,
+  stage: FunnelStage | null,
+  lostReason: LostReason | null
+): Promise<void> {
+  if (stage) mockStageOverrides.set(contactId, { stage, lostReason });
+  else mockStageOverrides.delete(contactId);
+
+  mockProspects = mockProspects.map((p) => {
+    if (p.id !== contactId) return p;
+    const override = mockStageOverrides.get(contactId) ?? null;
+    const effectiveStage = computeEffectiveStage({
+      manualStage: override?.stage ?? null,
+      introSent: p.status !== "DRAFTED",
+      followUpSent: false,
+    });
+    return {
+      ...p,
+      stage: effectiveStage,
+      lostReason: effectiveStage === "deal_lost" ? (override?.lostReason ?? null) : null,
+    };
+  });
+}
+
+// Same append-only model as the real account's contact_notes table -- no edit/delete here either.
+let mockNoteIdCounter = 0;
+const mockContactNotes = new Map<string, ContactNote[]>();
+
+export async function fetchContactNotes(contactId: string): Promise<ContactNote[]> {
+  return mockContactNotes.get(contactId) ?? [];
+}
+
+export async function addContactNote(contactId: string, author: string, text: string): Promise<void> {
+  const list = mockContactNotes.get(contactId) ?? [];
+  const note: ContactNote = {
+    id: `mock-note-${mockNoteIdCounter++}`,
+    author,
+    text,
+    createdAt: new Date().toISOString(),
+  };
+  mockContactNotes.set(contactId, [note, ...list]);
+}
+
+export async function updateContactNote(noteId: string, text: string): Promise<void> {
+  for (const [contactId, list] of mockContactNotes) {
+    if (list.some((n) => n.id === noteId)) {
+      mockContactNotes.set(
+        contactId,
+        list.map((n) => (n.id === noteId ? { ...n, text } : n))
+      );
+      return;
+    }
+  }
+}
+
+export async function deleteContactNote(noteId: string): Promise<void> {
+  for (const [contactId, list] of mockContactNotes) {
+    if (list.some((n) => n.id === noteId)) {
+      mockContactNotes.set(contactId, list.filter((n) => n.id !== noteId));
+      return;
+    }
+  }
+}
 
 // Sender identities lifted from the mock email sign-offs (Sana Whitfield / Niall / Sean
 // already appear as the "From" name in lib/data.ts's drafted bodies) so the sender picker
@@ -40,20 +112,73 @@ function readLocalString(key: string, fallback: string): string {
   return window.localStorage.getItem(key) || fallback;
 }
 
-export async function fetchMockData(): Promise<{
-  prospects: Prospect[];
-  stats: DashboardStats;
-  activity: ActivityEvent[];
-}> {
+function matchesFilters(
+  p: Prospect,
+  status: ProspectStatus | null,
+  stage: FunnelStage | null
+): boolean {
+  if (status && p.status !== status) return false;
+  if (stage && p.stage !== stage) return false;
+  return true;
+}
+
+function toListItem(p: Prospect): ProspectListItem {
   return {
-    prospects: mockProspects,
-    stats: {
-      ...computeDashboardStats(mockProspects),
-      icpHealthPct: 88,
-      icpHealthNote: "Steady sourcing across this week's runs.",
-    },
-    activity: seedActivity,
+    id: p.id,
+    name: p.name,
+    title: p.title,
+    company: p.company,
+    subject: p.subject,
+    status: p.status,
+    stage: p.stage,
+    daysAgo: p.daysAgo,
   };
+}
+
+// Mock data never exceeds PAGE_SIZE (11 seed prospects), so this is always "page 1, no more" --
+// still wired through the same paginated interface the real account uses so both accounts share
+// hook code (lib/useAccountData.ts). Full Prospect objects (not the lean list item) -- mock
+// prospects already carry everything, and the real account's list is rich too now (bounded to
+// the page size), so the detail page can reuse an already-loaded row instantly either way.
+export async function fetchProspectsPage(args: {
+  cursor: string | null;
+  status: ProspectStatus | null;
+  stage: FunnelStage | null;
+}): Promise<ProspectPage> {
+  const items = mockProspects.filter((p) => matchesFilters(p, args.status, args.stage));
+  return { items, nextCursor: null };
+}
+
+// Mirrors fetchProspectsPage's real-account counterpart -- the Funnel board needs everything
+// at once regardless of account.
+export async function fetchAllProspectsLean(): Promise<ProspectListItem[]> {
+  return mockProspects.map(toListItem);
+}
+
+export async function fetchLatestProspectId(args: {
+  status: ProspectStatus | null;
+  stage: FunnelStage | null;
+}): Promise<string | null> {
+  const filtered = mockProspects.filter((p) => matchesFilters(p, args.status, args.stage));
+  if (filtered.length === 0) return null;
+  // Lower daysAgo = more recent -- the mock equivalent of "order by created_at desc".
+  return filtered.reduce((latest, p) => (p.daysAgo < latest.daysAgo ? p : latest)).id;
+}
+
+export async function fetchProspectById(contactId: string): Promise<Prospect | null> {
+  return mockProspects.find((p) => p.id === contactId) ?? null;
+}
+
+export async function fetchDashboardStats(): Promise<DashboardStats> {
+  return {
+    ...computeDashboardStats(mockProspects),
+    icpHealthPct: 88,
+    icpHealthNote: "Steady sourcing across this week's runs.",
+  };
+}
+
+export async function fetchRecentActivity(): Promise<ActivityEvent[]> {
+  return seedActivity;
 }
 
 // Synthetic thread built from this account's flat Prospect fields (subject/body/response) --

@@ -74,6 +74,31 @@ export function DashboardSkeleton() {
   );
 }
 
+export function FunnelBoardSkeleton() {
+  return (
+    <div className="w-full flex-1 px-6 py-8 sm:px-10">
+      <div className="mb-6 flex flex-col gap-2">
+        <Skeleton className="h-7 w-32" />
+        <Skeleton className="h-3.5 w-96" />
+      </div>
+      <div className="flex gap-4 overflow-x-auto pb-4">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="flex w-72 shrink-0 flex-col gap-3">
+            <div className="flex items-center gap-2 px-1">
+              <Skeleton className="h-2 w-2 rounded-full" />
+              <Skeleton className="h-3.5 w-24" />
+            </div>
+            <div className="flex flex-col gap-2 rounded-2xl border border-border/60 p-2">
+              <Skeleton className="h-20 w-full rounded-2xl" />
+              <Skeleton className="h-20 w-full rounded-2xl" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function EmailDetailSkeleton() {
   return (
     <section className="min-h-0 flex-1 overflow-y-auto">

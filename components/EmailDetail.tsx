@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useLayoutEffect, useState } from "react";
 import Chip from "@/components/Chip";
+import ContactNotes from "@/components/ContactNotes";
 import { useContextMenu } from "@/components/ContextMenu";
 import CopyBadge from "@/components/CopyBadge";
 import { PhoneIcon } from "@/components/icons";
@@ -22,9 +23,11 @@ function toTelHref(phone: string): string {
 export default function EmailDetail({
   prospect,
   status,
+  stage,
 }: {
   prospect: Prospect;
   status?: string;
+  stage?: string;
 }) {
   const [canLoad, setCanLoad] = useState(false);
   const showContextMenu = useContextMenu();
@@ -42,7 +45,10 @@ export default function EmailDetail({
     enabled: canLoad,
   });
 
-  const backHref = status ? `/emails?status=${status}` : "/emails";
+  const backParams = new URLSearchParams();
+  if (status) backParams.set("status", status);
+  if (stage) backParams.set("stage", stage);
+  const backHref = backParams.toString() ? `/emails?${backParams.toString()}` : "/emails";
 
   return (
     <section className="min-h-0 flex-1 overflow-y-auto">
@@ -100,6 +106,8 @@ export default function EmailDetail({
             </div>
           </div>
         </div>
+
+        {canLoad && <ContactNotes contactId={prospect.id} />}
 
         <div
           className="rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-panel-sm)]"

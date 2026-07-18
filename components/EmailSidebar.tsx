@@ -1,21 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Chip from "@/components/Chip";
 import { ProspectRowSkeleton } from "@/components/Skeleton";
-import { dateGroupLabel, type Prospect, type ProspectStatus } from "@/lib/data";
+import {
+  dateGroupLabel,
+  parseStatusFilter,
+  STATUS_FILTERS,
+  type Prospect,
+  type ProspectStatus,
+} from "@/lib/data";
+import { FUNNEL_COLUMNS, parseStageFilter, type FunnelStage } from "@/lib/funnel";
 import { statusTone } from "@/lib/status";
-import { useProspects } from "@/lib/useAccountData";
-
-const STATUS_FILTERS: { value: ProspectStatus; label: string }[] = [
-  { value: "DRAFTED", label: "Drafted" },
-  { value: "SENDING", label: "Sending" },
-  { value: "DELIVERED", label: "Delivered" },
-  { value: "BOUNCED", label: "Bounced" },
-  { value: "RESPONDED", label: "Responded" },
-];
+import { useProspectsList } from "@/lib/useAccountData";
 
 function groupByDate(list: Prospect[]): [number, Prospect[]][] {
   const map = new Map<number, Prospect[]>();
@@ -27,63 +26,116 @@ function groupByDate(list: Prospect[]): [number, Prospect[]][] {
   return [...map.entries()].sort((a, b) => a[0] - b[0]);
 }
 
-function parseStatusFilter(raw: string | null): ProspectStatus | null {
-  const upper = raw?.toUpperCase();
-  return STATUS_FILTERS.find((f) => f.value === upper)?.value ?? null;
-}
+const SELECT_CLASSES =
+  "min-w-0 flex-1 rounded-full border border-border bg-surface-raised px-3 py-1.5 text-xs font-medium text-ink-muted outline-none transition-colors hover:text-ink focus-visible:ring-2 focus-visible:ring-accent";
 
-function StatusFilterBar({ activeStatus }: { activeStatus: ProspectStatus | null }) {
+function FilterDropdowns({
+  activeStatus,
+  activeStage,
+}: {
+  activeStatus: ProspectStatus | null;
+  activeStage: FunnelStage | null;
+}) {
   const pathname = usePathname();
+  const router = useRouter();
 
-  function filterHref(value: ProspectStatus | null) {
-    if (!value) return pathname;
-    return `${pathname}?status=${value.toLowerCase()}`;
+  function buildHref(status: ProspectStatus | null, stage: FunnelStage | null) {
+    const params = new URLSearchParams();
+    if (status) params.set("status", status.toLowerCase());
+    if (stage) params.set("stage", stage);
+    const query = params.toString();
+    return query ? `${pathname}?${query}` : pathname;
   }
 
   return (
-    <div className="flex flex-wrap gap-1.5 border-b border-border px-4 py-3">
-      <Link
-        href={filterHref(null)}
-        className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors active:scale-[0.96] ${
-          activeStatus === null
-            ? "border-accent/30 bg-accent-dim text-accent"
-            : "border-transparent text-ink-muted hover:bg-surface-raised hover:text-ink"
-        }`}
+    <div className="flex gap-2 border-b border-border px-4 py-3">
+      <select
+        aria-label="Filter by email status"
+        value={activeStatus ?? ""}
+        onChange={(e) =>
+          router.push(buildHref((e.target.value || null) as ProspectStatus | null, activeStage))
+        }
+        className={SELECT_CLASSES}
       >
-        All
-      </Link>
-      {STATUS_FILTERS.map((f) => {
-        const isActive = activeStatus === f.value;
-        return (
-          <Link
-            key={f.value}
-            href={filterHref(f.value)}
-            className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors active:scale-[0.96] ${
-              isActive
-                ? "border-accent/30 bg-accent-dim text-accent"
-                : "border-transparent text-ink-muted hover:bg-surface-raised hover:text-ink"
-            }`}
-          >
+        <option value="">All statuses</option>
+        {STATUS_FILTERS.map((f) => (
+          <option key={f.value} value={f.value}>
             {f.label}
-          </Link>
-        );
-      })}
+          </option>
+        ))}
+      </select>
+
+      <select
+        aria-label="Filter by funnel stage"
+        value={activeStage ?? ""}
+        onChange={(e) =>
+          router.push(buildHref(activeStatus, (e.target.value || null) as FunnelStage | null))
+        }
+        className={SELECT_CLASSES}
+      >
+        <option value="">All stages</option>
+        {FUNNEL_COLUMNS.map((c) => (
+          <option key={c.key} value={c.key}>
+            {c.label}
+          </option>
+        ))}
+      </select>
     </div>
   );
+}
+
+function Spinner({ className = "" }: { className?: string }) {
+  return (
+    <div
+      className={`h-4 w-4 animate-spin rounded-full border-2 border-border border-t-accent ${className}`}
+      aria-hidden
+    />
+  );
+}
+
+// Fires fetchNextPage() when the sentinel scrolls into view within the sidebar's own
+// scroll container (not the window) -- root is the aside itself, so this works the same
+// whether the sidebar is docked beside the detail pane (desktop) or full-width (mobile).
+function useInfiniteScrollTrigger(
+  containerRef: React.RefObject<HTMLElement | null>,
+  sentinelRef: React.RefObject<HTMLDivElement | null>,
+  hasNextPage: boolean,
+  isFetchingNextPage: boolean,
+  fetchNextPage: () => void
+) {
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      { root: containerRef.current, rootMargin: "200px" }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [containerRef, sentinelRef, hasNextPage, isFetchingNextPage, fetchNextPage]);
 }
 
 function EmailSidebarContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const activeStatus = parseStatusFilter(searchParams.get("status"));
-  const { prospects, loading } = useProspects();
+  const activeStage = parseStageFilter(searchParams.get("stage"));
+  const { items, loading, isFetchingNextPage, hasNextPage, fetchNextPage } = useProspectsList({
+    status: activeStatus,
+    stage: activeStage,
+  });
 
-  const filteredProspects = activeStatus
-    ? prospects.filter((p) => p.status === activeStatus)
-    : prospects;
-
-  const groups = groupByDate(filteredProspects);
+  const groups = groupByDate(items);
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
+
+  const asideRef = useRef<HTMLElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  useInfiniteScrollTrigger(asideRef, sentinelRef, hasNextPage, isFetchingNextPage, fetchNextPage);
 
   function toggle(daysAgo: number) {
     setCollapsed((prev) => {
@@ -94,18 +146,25 @@ function EmailSidebarContent() {
     });
   }
 
-  const queryString = activeStatus ? `?status=${activeStatus.toLowerCase()}` : "";
+  const queryParams = new URLSearchParams();
+  if (activeStatus) queryParams.set("status", activeStatus.toLowerCase());
+  if (activeStage) queryParams.set("stage", activeStage);
+  const queryString = queryParams.toString() ? `?${queryParams.toString()}` : "";
 
   return (
-    <aside className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:flex-none lg:w-96 lg:border-r lg:border-border">
+    <aside
+      ref={asideRef}
+      className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:flex-none lg:w-96 lg:border-r lg:border-border"
+    >
       <div className="sticky top-0 flex items-center gap-2 border-b border-border bg-surface px-4 py-3 text-sm font-medium text-ink">
         Prospects
         <span className="rounded-full border border-border px-2 py-0.5 text-xs text-ink-muted">
-          {filteredProspects.length}
+          {items.length}
+          {hasNextPage ? "+" : ""}
         </span>
       </div>
 
-      <StatusFilterBar activeStatus={activeStatus} />
+      <FilterDropdowns activeStatus={activeStatus} activeStage={activeStage} />
 
       {loading && (
         <div className="flex flex-col gap-0.5 px-2 pt-2">
@@ -177,6 +236,23 @@ function EmailSidebarContent() {
           </div>
         );
       })}
+
+      {!loading && items.length === 0 && (
+        <p className="px-4 py-6 text-center text-sm text-ink-muted">No prospects match this filter</p>
+      )}
+
+      {!loading && <div ref={sentinelRef} className="h-1 shrink-0" aria-hidden />}
+
+      {isFetchingNextPage && (
+        <div className="flex items-center justify-center gap-2 px-4 py-4 text-xs text-ink-muted">
+          <Spinner />
+          Loading more…
+        </div>
+      )}
+
+      {!loading && !hasNextPage && items.length > 0 && (
+        <p className="px-4 py-4 text-center text-xs text-ink-faint">No more prospects</p>
+      )}
     </aside>
   );
 }

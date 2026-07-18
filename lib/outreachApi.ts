@@ -5,10 +5,13 @@
 // thehrcompany gets a same-shaped in-memory simulation (lib/mockData.ts). Every export here
 // mirrors workenvoData.ts's signatures 1:1.
 import { getAccount } from "@/lib/auth";
+import type { FunnelStage, LostReason } from "@/lib/funnel";
 import * as mock from "@/lib/mockData";
 import * as workenvo from "@/lib/workenvoData";
+import type { ProspectStatus } from "@/lib/data";
 
-export type { RunRequest, RunRequestStatus, SenderOption } from "@/lib/workenvoData";
+export type { ProspectPage, RunRequest, RunRequestStatus, SenderOption } from "@/lib/workenvoData";
+export type { FunnelStage, LostReason } from "@/lib/funnel";
 
 function isWorkenvo(): boolean {
   return getAccount() === "workenvo";
@@ -67,4 +70,63 @@ export async function enqueueRun(count: number): Promise<void> {
 
 export async function fetchLatestRunRequest() {
   return isWorkenvo() ? workenvo.fetchLatestRunRequest() : mock.fetchLatestRunRequest();
+}
+
+export async function setContactStage(
+  contactId: string,
+  stage: FunnelStage | null,
+  lostReason: LostReason | null
+): Promise<void> {
+  return isWorkenvo()
+    ? workenvo.setContactStage(contactId, stage, lostReason)
+    : mock.setContactStage(contactId, stage, lostReason);
+}
+
+export async function fetchContactNotes(contactId: string) {
+  return isWorkenvo() ? workenvo.fetchContactNotes(contactId) : mock.fetchContactNotes(contactId);
+}
+
+export async function addContactNote(contactId: string, author: string, text: string): Promise<void> {
+  return isWorkenvo()
+    ? workenvo.addContactNote(contactId, author, text)
+    : mock.addContactNote(contactId, author, text);
+}
+
+export async function updateContactNote(noteId: string, text: string): Promise<void> {
+  return isWorkenvo() ? workenvo.updateContactNote(noteId, text) : mock.updateContactNote(noteId, text);
+}
+
+export async function deleteContactNote(noteId: string): Promise<void> {
+  return isWorkenvo() ? workenvo.deleteContactNote(noteId) : mock.deleteContactNote(noteId);
+}
+
+export async function fetchProspectsPage(args: {
+  cursor: string | null;
+  status: ProspectStatus | null;
+  stage: FunnelStage | null;
+}) {
+  return isWorkenvo() ? workenvo.fetchProspectsPage(args) : mock.fetchProspectsPage(args);
+}
+
+export async function fetchLatestProspectId(args: {
+  status: ProspectStatus | null;
+  stage: FunnelStage | null;
+}) {
+  return isWorkenvo() ? workenvo.fetchLatestProspectId(args) : mock.fetchLatestProspectId(args);
+}
+
+export async function fetchProspectById(contactId: string) {
+  return isWorkenvo() ? workenvo.fetchProspectById(contactId) : mock.fetchProspectById(contactId);
+}
+
+export async function fetchAllProspectsLean() {
+  return isWorkenvo() ? workenvo.fetchAllProspectsLean() : mock.fetchAllProspectsLean();
+}
+
+export async function fetchDashboardStats() {
+  return isWorkenvo() ? workenvo.fetchDashboardStats() : mock.fetchDashboardStats();
+}
+
+export async function fetchRecentActivity() {
+  return isWorkenvo() ? workenvo.fetchRecentActivity() : mock.fetchRecentActivity();
 }

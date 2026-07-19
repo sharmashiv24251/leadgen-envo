@@ -6,6 +6,11 @@ sellable CRM (the HR company demo feedback + funnel/thread requests). Update thi
 as each phase ships; move genuinely historical detail into `devinstruction.md` once built, the
 same way Phase 2 was documented there.
 
+**Numbering note:** this file's Phase 1/2/3 are this roadmap's own track. `devinstruction.md` has
+its own independent Phase 0/1/2/3 (compute/infra build phases) that now also reaches "Phase 3" —
+its Phase 3 (CRM: Funnel/Notes/feed, 2026-07-19) is unrelated to this file's Phase 3 (Microsoft
+Exchange) below. Don't assume matching numbers mean matching content across the two files.
+
 ---
 
 ## Phase 1 — Threads, replies, follow-ups — COMPLETE (2026-07-18)
@@ -133,30 +138,61 @@ always-on background scan of every mailbox's Sent folder.
 
 ---
 
-## Phase 2 — CRM frontend
+## Phase 2 — CRM frontend — Funnel/Notes/feed DONE (2026-07-19); detail page partial
 
-**Funnel / Kanban dashboard.** Stages: Leads → Intro sent → Follow-up sent → Meeting booked →
-Contract, plus a Deal Lost bucket with reasons (no response / no interest / not a match). Most
-stages derive automatically from message data (Phase 1); "meeting booked," "contract," and lost
-reasons are human judgment calls — a dropdown a rep sets, not something inferred. New `stage` and
-`lost_reason` columns; Kanban UI is a self-contained frontend build, no backend novelty.
+Three of the four items below shipped and were verified live, not just reviewed as code. Detail
+moved to `backend/devinstruction.md` §PHASE 3 per this file's own convention (see the top of this
+file); what follows is status plus what changed from the original spec and what's still open.
 
-**Prospect detail page.** Company card (size, role, etc.), notes, call-comments, funnel stage, full
-thread view, and **real** Apollo phone reveal. Note: phone reveal today is just a static `tel:`
-link in `EmailDetail.tsx` — there's no Apollo call behind it yet, this is a genuine (small,
-isolated) build, not a wire-up.
+**Funnel / Kanban dashboard — DONE.** All six stages shipped as specced: Leads → Intro sent →
+Follow-up sent → Meeting booked → Contract, plus Deal lost with a reason (no response / no
+interest / not a match). Leads/Intro sent/Follow-up sent derive automatically, computed
+server-side by a new `prospect_feed` Postgres view rather than client-side JS, so pagination and
+filtering both stay correct against it. Meeting booked/Contract/Deal lost are the only
+rep-set ones, via `contacts.stage`/`contacts.lost_reason`, exactly as specced. Kanban UI lives at
+`/funnel`, drag-and-drop, cards show their stage and click through to the prospect detail page.
 
-**Notes — general, freeform.** A small `contact_notes` table (contact_id, author, text,
-created_at) — a log, not a single overwritable field, since reps will want a running history.
-Rendered as an array of small cards on the prospect page, newest first. This is *anything* the
-operator wants to jot down about a person — not limited to call summaries — plain natural
-language, no structure enforced ("this person is bullshit" is a perfectly valid note). Call
-comments are just notes with nothing special about them, same table, no separate mechanism needed.
-Pure bookkeeping, written after the fact — nothing here loops back into the agent.
+**Prospect detail page — partial.** Company card and full thread view were already there before
+this work. Funnel stage is now shown too (a view-only chip — still changed via the Kanban board,
+not from here). **Notes are done** (see below). **Real Apollo phone reveal — done (2026-07-19),
+took two passes.** First pass wrongly assumed Apollo returns a phone number synchronously; real
+behavior is that `reveal_phone_number=true` requires a `webhook_url` and the number arrives
+minutes later via callback, so every early live click got mis-recorded as `phone_status:
+'not_found'` (an API rejection silently read as "person not found") — those bogus rows were reset
+in the DB. Fixed version adds a `wk-phone-webhook` function Apollo calls back (auth via
+`AGENT_TOKEN` + `contact_id`, both in the callback URL's query string, since Apollo's webhook
+payload has nothing that correlates to the original request), a real `pending` state end to end
+(DB column → `prospect_feed` view → frontend `Prospect.phoneStatus`), and 5s polling in
+`useProspectDetail` while pending. Full detail in `CLAUDE.md`'s CRM section. Still not confirmed
+against a contact Apollo actually has phone data for — only the `pending`/`not_found` paths have
+been seen live so far.
 
-**Companies / Contacts / Funnel navigation split.** Promotes `company`/`company_domain` (currently
-free text on each contact, no dedup) into a real `companies` table. Touches a lot of read paths —
-do this once the funnel/thread data shape has settled, not before.
+**Notes — DONE, but the shape changed twice from what's specced above.** The `contact_notes`
+table (contact_id, author, text, created_at) shipped as designed. Two things didn't survive
+contact with actual use, though: it was originally built as the append-only log described above
+(no edit/delete), then widened to full CRUD on request — reps wanted to fix typos and delete
+notes, not just append forever. And rather than an inline card on the page, it's a floating
+sticky-notes-style widget (round button, bottom-right of the thread view, expands into a panel)
+— that placement came from a direct ask, not from this doc's original "array of small cards on
+the prospect page" description. The "no structure enforced, call comments are just notes" part of
+the original spec held exactly as written — there's no separate call-comment mechanism, and there
+never needed to be. One thing this doc didn't anticipate: there's no per-user identity anywhere in
+this app (both logins are account-level), so `author` is hardcoded to `"You"` rather than asked
+for — a real gap from the original "contact_id, author, text" schema design, worth revisiting if
+this ever needs to distinguish which rep wrote a note.
+
+**Companies / Contacts / Funnel navigation split — not started.** Still correctly deferred per
+this doc's own advice below ("do this once the funnel/thread data shape has settled") — the funnel
+data shape is now settled, so this is unblocked, but nobody's picked it up yet.
+
+**Not originally scoped here, but became necessary partway through this work:** the Outreach
+Feed's prospect list went from one unbounded query (every prospect ever drafted, full email body
++ `why_this_angle`, no limit — a real problem at this project's actual 10-20 drafts/day cadence)
+to a paginated, 40/page infinite-scroll feed, all filter combinations included. This wasn't in the
+original Phase 2 scope above; it came up because the Funnel/Notes work was about to make the
+Outreach Feed something people actually use daily, which would have made the existing unbounded
+query's scaling problem bite much sooner. Full story, including a real Postgres gotcha (views
+default to definer-style permissions, not invoker), in `backend/devinstruction.md` §PHASE 3.4.
 
 ---
 

@@ -612,7 +612,131 @@ Edge-Function+trigger based instead — see §2.3):
    flips to `approved` → sends for real. **Done and confirmed** (2026-07-13) — sent
    successfully as both `saransh@envo.club` and `info@envo.club`.
 4. Reply to a sent email from another account → within 5 min the email row flips to `replied`
-   and a notification appears. **Not testable yet** — §2.4 (reply poller) doesn't exist.
+   and a notification appears. **Updated 2026-07-17: this is done and verified live** — §2.4's
+   reply poller was built after this section was written; see `internal-tool-to-saas.md` Phase 1
+   for the actual build (it landed as `wk-poll-replies` + `mailbox_poll_state` + a 5-min
+   `pg_cron` job, not the design sketched in §2.4 below, though the same idea).
+
+---
+
+# PHASE 3 — CRM: Funnel, Notes, and the paginated feed
+
+Turns the drafting tool into something closer to a lightweight CRM. Full forward-looking scope
+lives in `internal-tool-to-saas.md`; this section is the as-built record now that most of it has
+shipped (2026-07-19).
+
+## 3.1 — Funnel / Kanban board
+
+**STATUS: done.** New route `/funnel` (`app/funnel/page.tsx` + `components/FunnelBoard.tsx`), six
+stages: Leads → Intro sent → Follow-up sent → Meeting booked → Contract → Deal lost.
+
+Schema: `contacts.stage` (nullable text, check-constrained to `meeting_booked`/`contract`/
+`deal_lost`) and `contacts.lost_reason` (nullable text, check-constrained to `no_response`/
+`no_interest`/`not_a_match`). Only these three stages are ever stored — Leads/Intro sent/
+Follow-up sent are always computed from whether an intro/follow-up message has actually sent,
+never stored, so they can't drift out of sync with the real message history.
+
+RLS gotcha worth remembering: `contacts` already had a **column-level** `UPDATE` grant on every
+column for `anon`/`authenticated` (an old broad grant, harmless only because no RLS *policy*
+existed to let it apply). Adding a plain `USING (true)` policy for the stage feature would have
+suddenly let the anon key edit `full_name`/`email`/anything else too — fixed by first
+`REVOKE UPDATE ON contacts FROM anon, authenticated`, then
+`GRANT UPDATE (stage, lost_reason) ON contacts TO anon, authenticated`, so the policy itself stays
+a simple `USING (true)` and the column grant does the actual restricting. Verified live against
+the real anon key over the REST API, not just the SQL editor: a `full_name` update is rejected
+(`permission denied for table contacts`), a `stage` update succeeds.
+
+Drag-and-drop via `@dnd-kit/core` (new dependency). Dropping a card on `meeting_booked`/`contract`
+sets `contacts.stage` directly; dropping on `deal_lost` first prompts for a reason (inline modal,
+not a separate page); dropping a card *back* onto one of the three computed columns clears the
+override (`stage = null`), letting the computed value re-take over — which can land on a
+*different* computed column than the one it was dropped in, if the underlying message history
+doesn't match (e.g. dropping a Contract card onto Leads when its intro already sent lands back on
+Intro sent, not Leads). Deliberate v1 simplification, not a bug.
+
+Cards show their current stage as a chip and are clickable through to `/emails/[id]` (the
+prospect detail page) — dnd-kit's pointer sensor has a 6px movement threshold before it treats a
+gesture as a drag, which is what lets a plain click and a real drag coexist on the same card.
+
+## 3.2 — Notes
+
+**STATUS: done, shape changed twice from the original one-line spec.** New `contact_notes` table
+(`id`, `client_id`, `contact_id`, `author`, `text`, `created_at`). Originally built as an
+append-only log (select+insert RLS only, matching "a log, not a single overwritable field" in the
+roadmap doc) with an inline card on the prospect detail page and a name field.
+
+Both walked back on request: RLS widened to full CRUD (added `update`/`delete` policies, both
+`USING (true)`) so notes can be edited/deleted, not just appended; and the UI moved to a floating
+round button (bottom-right of the thread view) that expands into a sticky-note-style panel —
+scrollable note list on top, compose box pinned at the bottom, icon-only edit (pencil) and delete
+(red ×) on each note instead of text buttons. No name/author input either — there's no per-user
+identity anywhere in this app (both logins are account-level, not personal), so `author` is just
+hardcoded to `"You"` rather than asking for a name every time.
+
+## 3.3 — Funnel-stage-aware filtering, and the `prospect_feed` view
+
+**STATUS: done.** The Outreach Feed's status filter (previously a pill row) is now two dropdowns:
+email status (Drafted/Sending/Delivered/Bounced/Responded) and funnel stage (the six stages from
+§3.1), ANDed together, reflected in the URL (`?status=&stage=`).
+
+Filtering by funnel stage server-side is what actually required new backend work: three of the
+six stages are computed, not stored, so a plain `WHERE stage = ...` doesn't work against
+`contacts` directly. Added a Postgres view, `prospect_feed`, that computes `effective_stage` per
+contact (same logic as `lib/funnel.ts`'s `computeEffectiveStage`, ported to a SQL `case`
+expression + a `LEFT JOIN LATERAL` checking for a sent follow-up) so every filter combination —
+including the computed ones — is a plain `.eq()` against the view, keyset-paginatable, no
+client-side re-derivation needed.
+
+Gotcha: Postgres views default to **definer**-style permissions, not invoker, despite that being
+a common assumption. The security advisor flagged `prospect_feed` as `SECURITY DEFINER` (ERROR
+level) immediately after creating it — fixed with
+`ALTER VIEW prospect_feed SET (security_invoker = true)`, re-verified the advisor came back clean
+and the anon key still reads it correctly afterward.
+
+## 3.4 — Prospects list: unbounded fetch → paginated feed
+
+**STATUS: done.** The original list query (one `fetchWorkenvoData()` fetching every drafted
+prospect's full body + `why_this_angle` + full contact fields, no `LIMIT`, shared by the sidebar,
+the detail page, Command Center's KPIs, and the recent-activity feed) doesn't scale: at 10-20 new
+prospects/day it grows forever, and the sidebar renders the whole filtered list into the DOM with
+no virtualization. Split into five purpose-built queries in `lib/workenvoData.ts`:
+
+- `fetchProspectsPage` — the Outreach Feed's own paginated fetch, 40/page, keyset-paginated on
+  `created_at` (chosen over offset pagination specifically because new drafts arriving mid-scroll
+  don't cause skipped/duplicated rows the way an offset would). Filters by email status and/or
+  funnel stage via the `prospect_feed` view from §3.3 — every view (filtered or not) paginates the
+  same way, per an explicit ask partway through this work ("drafted and delivered are obviously
+  going to be long lists too").
+- `fetchLatestProspectId` — powers the emails-index auto-open redirect without needing the whole
+  list loaded.
+- `fetchProspectById` — the detail page's own by-id fetch, full body/why_this_angle/contact
+  fields, for prospects not already sitting in a loaded list page (see below).
+- `fetchDashboardStats` / `fetchRecentActivity` — Command Center's KPIs and activity feed, now a
+  lean status-only query and a latest-10 query respectively, independent of how the sidebar is
+  paginated or filtered.
+
+`components/FunnelBoard.tsx` needed a sixth, separate fetch (`fetchAllProspectsLean`) discovered
+mid-implementation: a Kanban board has to see every prospect at once to bucket them into columns,
+so it can't ride the paginated feed the way a chronological list can — it uses the same
+`prospect_feed` view but unpaginated, with only the lean columns (no body/why_this_angle), which
+keeps it far cheaper than the old approach without needing pagination.
+
+**Reversed one part of this mid-course.** The paginated list query originally only fetched the
+lean columns the sidebar renders (name/subject/status), on the theory that body/why_this_angle
+were exactly the wasteful overfetch being removed. That made every prospect detail page pay for a
+fresh fetch on open, which had previously felt instant (the old unbounded query had already loaded
+everything). Since pagination bounds the list to 40 rows at a time regardless, the original reason
+to exclude the rich fields (unbounded growth) no longer applied at the same severity — so
+`fetchProspectsPage` was widened back to the full row shape (body/why_this_angle/location/email/
+phone included, ~35-60KB for a full page, not the whole account history), and the detail page
+(`useProspectDetail` in `lib/useAccountData.ts`) now seeds itself from the sidebar's already-loaded
+query cache via react-query's lazy `initialData` when the prospect is already loaded, falling back
+to `fetchProspectById` only for a prospect that isn't (a deep link, or a filter combination not yet
+browsed).
+
+Sidebar UI: `IntersectionObserver`-triggered infinite scroll (fires on a sentinel div scrolling
+into view within the sidebar's own scroll container, not the window), a spinner + "Loading more…"
+while fetching the next page, skeleton rows on first load, "No more prospects" at the true end.
 
 ---
 

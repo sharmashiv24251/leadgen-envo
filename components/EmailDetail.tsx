@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useLayoutEffect, useState } from "react";
 import Chip from "@/components/Chip";
@@ -13,9 +13,11 @@ import Tooltip from "@/components/Tooltip";
 import { copySelectionOr } from "@/lib/clipboard";
 import type { Prospect } from "@/lib/data";
 import { getFunnelColumn } from "@/lib/funnel";
-import { fetchSenderOptions } from "@/lib/outreachApi";
+import { fetchSenderOptions, revealPhone } from "@/lib/outreachApi";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAccountMode } from "@/lib/useAccountData";
+
+const PHONE_NOT_REVEALED = "not revealed";
 
 function toTelHref(phone: string): string {
   return `tel:${phone.replace(/[^\d+]/g, "")}`;
@@ -34,6 +36,7 @@ export default function EmailDetail({
   const showContextMenu = useContextMenu();
   const account = useAccountMode();
   const keys = queryKeys.forAccount(account);
+  const queryClient = useQueryClient();
 
   useLayoutEffect(() => {
     setCanLoad(true);
@@ -45,6 +48,22 @@ export default function EmailDetail({
     queryFn: fetchSenderOptions,
     enabled: canLoad,
   });
+
+  const revealPhoneMutation = useMutation<{ phone: string | null; phoneStatus: string }, Error, void>({
+    mutationFn: () => revealPhone(prospect.id),
+    onSuccess: ({ phone, phoneStatus }) => {
+      queryClient.setQueryData<Prospect | null>(keys.prospectDetail(prospect.id), (old) =>
+        old ? { ...old, phone: phone ?? PHONE_NOT_REVEALED, phoneStatus } : old
+      );
+    },
+  });
+
+  const phoneRevealed = prospect.phone !== PHONE_NOT_REVEALED;
+  // Apollo answers the phone reveal via webhook a few minutes after the click (see
+  // useProspectDetail's refetchInterval) -- isPending covers both "request just sent, no
+  // response yet" and "request succeeded, still waiting on the webhook."
+  const phoneRevealPending = revealPhoneMutation.isPending || prospect.phoneStatus === "pending";
+  const phoneNotFound = !phoneRevealed && !phoneRevealPending && prospect.phoneStatus === "not_found";
 
   const backParams = new URLSearchParams();
   if (status) backParams.set("status", status);
@@ -97,16 +116,66 @@ export default function EmailDetail({
               </div>
               <CopyBadge value={prospect.email} tone="email" />
               <div className="flex items-center gap-1.5">
-                <CopyBadge value={prospect.phone} tone="phone" />
-                <Tooltip label={`Call ${prospect.phone}`}>
-                  <a
-                    href={toTelHref(prospect.phone)}
-                    className="inline-flex items-center justify-center rounded-full border border-pending/30 bg-pending-dim p-1.5 text-pending transition-colors hover:bg-pending/20 active:scale-[0.92]"
+                {phoneRevealed ? (
+                  <>
+                    <CopyBadge value={prospect.phone} tone="phone" />
+                    <Tooltip label={`Call ${prospect.phone}`}>
+                      <a
+                        href={toTelHref(prospect.phone)}
+                        className="inline-flex items-center justify-center rounded-full border border-pending/30 bg-pending-dim p-1.5 text-pending transition-colors hover:bg-pending/20 active:scale-[0.92]"
+                      >
+                        <PhoneIcon />
+                      </a>
+                    </Tooltip>
+                  </>
+                ) : phoneRevealPending ? (
+                  <div className="flex items-center gap-1.5">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-pending/30 bg-pending-dim px-2.5 py-1 text-xs font-medium text-pending opacity-70">
+                      <PhoneIcon />
+                      Revealing… (can take a few minutes)
+                    </span>
+                    {/* Apollo's webhook can take several minutes or, if it never arrives (no
+                        mobile credits, delivery failure, etc), forever -- this is always a safe
+                        no-op to click early since the server only re-fires Apollo once a
+                        pending reveal is itself over 10 minutes old. */}
+                    <button
+                      type="button"
+                      onClick={() => revealPhoneMutation.mutate()}
+                      className="text-xs font-medium text-ink-muted underline decoration-dotted transition-colors hover:text-ink"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : phoneNotFound ? (
+                  <div className="flex items-center gap-1.5">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs font-medium text-ink-muted">
+                      <PhoneIcon />
+                      No phone found
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => revealPhoneMutation.mutate()}
+                      className="text-xs font-medium text-ink-muted underline decoration-dotted transition-colors hover:text-ink"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => revealPhoneMutation.mutate()}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-pending/30 bg-pending-dim px-2.5 py-1 text-xs font-medium text-pending transition-colors hover:bg-pending/20 active:scale-[0.97]"
                   >
                     <PhoneIcon />
-                  </a>
-                </Tooltip>
+                    Reveal phone
+                  </button>
+                )}
               </div>
+              {revealPhoneMutation.error && (
+                <p className="text-xs text-danger">
+                  {revealPhoneMutation.error.message || "Couldn't reveal phone."}
+                </p>
+              )}
             </div>
           </div>
         </div>

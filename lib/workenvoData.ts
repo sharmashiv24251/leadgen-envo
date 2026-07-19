@@ -47,6 +47,7 @@ type EmailRow = {
     email: string | null;
     email_status: string | null;
     phone: string | null;
+    phone_status: string | null;
     stage: FunnelStage | null;
     lost_reason: LostReason | null;
   } | null;
@@ -106,6 +107,7 @@ function mapRowToProspect(row: EmailRow, followUpSentContactIds: Set<string>): P
     email: contact?.email ?? "not found",
     emailVerified: contact?.email_status === "verified",
     phone: contact?.phone ?? "not revealed",
+    phoneStatus: contact?.phone_status ?? null,
     daysAgo: daysAgoFrom(row.created_at),
     subject: row.subject,
     body: row.body,
@@ -209,6 +211,7 @@ type ProspectFeedRow = {
   email?: string | null;
   email_verification_status?: string | null;
   phone?: string | null;
+  phone_status?: string | null;
 };
 
 const PROSPECT_FEED_LEAN_COLUMNS =
@@ -220,7 +223,7 @@ const PROSPECT_FEED_LEAN_COLUMNS =
 // This lets the detail page reuse an already-loaded list row instantly (lib/useAccountData.ts's
 // useProspectDetail) instead of always paying for a second round-trip.
 const PROSPECT_FEED_RICH_COLUMNS = `${PROSPECT_FEED_LEAN_COLUMNS},
-  body, why_this_angle, location, email, email_verification_status, phone`;
+  body, why_this_angle, location, email, email_verification_status, phone, phone_status`;
 
 function extractIntel(whyThisAngle: { n: number; text: string }[] | null | undefined): string[] {
   return (whyThisAngle ?? [])
@@ -253,6 +256,7 @@ function feedRowToProspect(row: ProspectFeedRow): Prospect {
     email: row.email ?? "not found",
     emailVerified: row.email_verification_status === "verified",
     phone: row.phone ?? "not revealed",
+    phoneStatus: row.phone_status ?? null,
     daysAgo: daysAgoFrom(row.created_at),
     subject: row.subject,
     body: row.body ?? "",
@@ -351,7 +355,7 @@ export async function fetchProspectById(contactId: string): Promise<Prospect | n
       .from("email_messages")
       .select(
         `id, subject, body, why_this_angle, status, created_at,
-         contacts ( id, full_name, title, company, location, email, email_status, phone, stage, lost_reason )`
+         contacts ( id, full_name, title, company, location, email, email_status, phone, phone_status, stage, lost_reason )`
       )
       .eq("client_id", WORKENVO_CLIENT_ID)
       .eq("type", "intro")
@@ -514,6 +518,23 @@ export async function sendCustomReply(contactId: string, body: string): Promise<
   if (error) throw new Error(error.message);
   if (data?.error) throw new Error(data.error);
   return { messageId: data.message_id };
+}
+
+// Apollo key never reaches the browser -- wk-reveal-phone looks the contact up server-side
+// (by first/last name + company_domain) and writes contacts.phone/phone_status itself, same
+// "server resolves the sensitive bit" reasoning as sendCustomReply's subject/thread id.
+// Apollo's phone reveal is async (their API requires a webhook_url and delivers the actual
+// number minutes later, never in this call's response) -- this only ever returns 'pending' or
+// 'not_found' synchronously; 'verified' only comes from the DB already having a prior result.
+export async function revealPhone(
+  contactId: string
+): Promise<{ phone: string | null; phoneStatus: string }> {
+  const { data, error } = await supabaseBrowser.functions.invoke("wk-reveal-phone", {
+    body: { contact_id: contactId },
+  });
+  if (error) throw new Error(error.message);
+  if (data?.error) throw new Error(data.error);
+  return { phone: data.phone ?? null, phoneStatus: data.phone_status };
 }
 
 export type SenderOption = { email: string; name: string };

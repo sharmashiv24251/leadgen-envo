@@ -44,6 +44,12 @@ export async function sendCustomReply(contactId: string, body: string) {
   return isWorkenvo() ? workenvo.sendCustomReply(contactId, body) : mock.sendCustomReply(contactId, body);
 }
 
+export async function revealPhone(
+  contactId: string
+): Promise<{ phone: string | null; phoneStatus: string }> {
+  return isWorkenvo() ? workenvo.revealPhone(contactId) : mock.revealPhone(contactId);
+}
+
 export async function fetchSenderOptions() {
   return isWorkenvo() ? workenvo.fetchSenderOptions() : mock.fetchSenderOptions();
 }

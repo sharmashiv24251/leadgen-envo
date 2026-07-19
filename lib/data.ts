@@ -74,6 +74,10 @@ export interface Prospect {
   email: string;
   emailVerified: boolean;
   phone: string;
+  /** Mirrors `contacts.phone_status` -- null (never tried), 'pending' (Apollo's async phone
+   * reveal is in flight, answer lands via webhook a few minutes later), 'verified', or
+   * 'not_found'. Undefined for the mock account, which never has anything to reveal. */
+  phoneStatus?: string | null;
   /** Days before today this email was drafted. 0 = today, 1 = yesterday. */
   daysAgo: number;
   subject: string;

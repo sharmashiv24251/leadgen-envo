@@ -297,6 +297,15 @@ export async function fetchSenderOptions(): Promise<SenderOption[]> {
   return HR_SENDER_OPTIONS;
 }
 
+// Mock prospects already carry a fake phone number (lib/data.ts's seed data), so there's
+// nothing to actually reveal -- just hand back what's already there.
+export async function revealPhone(
+  contactId: string
+): Promise<{ phone: string | null; phoneStatus: string }> {
+  const prospect = mockProspects.find((p) => p.id === contactId);
+  return { phone: prospect?.phone ?? null, phoneStatus: "verified" };
+}
+
 export async function fetchAutoSend(): Promise<boolean> {
   return readLocalBool(AUTO_SEND_KEY, false);
 }

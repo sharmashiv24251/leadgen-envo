@@ -116,6 +116,10 @@ export function useProspectDetail(
       return cached?.pages.flatMap((page) => page.items).find((p) => p.id === contactId);
     },
     refetchOnMount: "always",
+    // Apollo's phone reveal answers via webhook a few minutes after the request, out of band
+    // from the click that triggered it -- poll while a reveal is in flight so the "Revealing…"
+    // state resolves to verified/not_found on its own instead of needing a manual refresh.
+    refetchInterval: (query) => (query.state.data?.phoneStatus === "pending" ? 5000 : false),
   });
 
   return { prospect: query.data ?? null, loading: query.isLoading };

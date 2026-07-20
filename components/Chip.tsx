@@ -15,14 +15,17 @@ export default function Chip({
 }: {
   tone?: ChipTone;
   // For chips rendered on top of a full-color fill (e.g. Funnel cards) rather than the
-  // app's usual neutral dark surface -- the tone-tinted styles below assume a dark
-  // neutral backdrop, so on-color chips get a translucent scrim instead. Darkening any of
-  // the six stage fills with a black overlay only raises contrast against white text, so
-  // this one treatment is safe on all of them without per-tone/per-stage checking.
+  // app's usual neutral surface -- the tone-tinted styles below assume sitting on
+  // --surface/--bg, so on-color chips get a translucent "glass tag" scrim instead, paired
+  // with --ink (dark text on day's light stage fills, white-ish on night's dark ones --
+  // see the --stage-scrim* tokens in globals.css for why each theme goes the opposite
+  // direction).
   onColor?: boolean;
   children: React.ReactNode;
 }) {
-  const className = onColor ? "border-white/20 bg-black/20 text-accent-ink" : toneClasses[tone];
+  const className = onColor
+    ? "border-stage-scrim-border bg-stage-scrim text-stage-ink"
+    : toneClasses[tone];
   return (
     <span
       className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${className}`}

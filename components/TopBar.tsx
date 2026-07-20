@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import ThemeToggle from "@/components/ThemeToggle";
 import { getAccount, isAuthenticated, revokeAccess, type Account } from "@/lib/auth";
 
 function formatClock(date: Date) {
@@ -100,6 +101,7 @@ export default function TopBar() {
         >
           {time ?? "--:--:--"}
         </span>
+        <ThemeToggle />
         {showNav && (
           <button
             type="button"

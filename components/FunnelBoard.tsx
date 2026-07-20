@@ -132,7 +132,7 @@ function CardNotesButton({ contactId }: { contactId: string }) {
           onMouseEnter={openNow}
           onMouseLeave={closeSoon}
           onClick={() => (open ? setOpen(false) : openNow())}
-          className="flex h-7 w-7 items-center justify-center rounded-full border border-white/20 bg-black/20 text-accent-ink shadow-[var(--shadow-panel-sm)] transition-colors hover:bg-black/35"
+          className="flex h-7 w-7 items-center justify-center rounded-full border border-stage-scrim-border bg-stage-scrim text-stage-ink shadow-[var(--shadow-panel-sm)] transition-colors hover:bg-stage-scrim-hover"
         >
           <PencilIcon className="h-3.5 w-3.5" />
         </button>
@@ -218,12 +218,12 @@ function FunnelCardContent({
       className={`relative flex flex-col gap-2 rounded-2xl p-3.5 shadow-[var(--shadow-panel-sm)] ${FUNNEL_STAGE_CARD_BG[prospect.stage]}`}
     >
       <div className="flex items-start justify-between gap-2">
-        <span className="truncate text-sm font-medium text-accent-ink">{prospect.name}</span>
+        <span className="truncate text-sm font-medium text-stage-ink">{prospect.name}</span>
         <Chip tone={statusTone[prospect.status]} onColor>
           {prospect.status}
         </Chip>
       </div>
-      <span className="truncate text-xs text-accent-ink">
+      <span className="truncate text-xs text-stage-ink">
         {prospect.title} · {prospect.company}
       </span>
       <div>

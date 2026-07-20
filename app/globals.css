@@ -1,19 +1,93 @@
 @import "tailwindcss";
 
 :root {
-  --bg: oklch(0.18 0.004 260);
-  --surface: oklch(0.235 0.005 260);
-  --surface-raised: oklch(0.29 0.006 260);
+  /* Day mode (default). Non-technical, older audience that already runs light mode
+     everywhere else -- colorful/pastel-leaning, blue-primary, tuned so every semantic
+     token doubles as chip TEXT sitting on its own *-dim fill, not just as an icon/link
+     color (see DESIGN.md Color section for the rationale and the full table). */
+  --bg: oklch(0.96 0.012 250);
+  --bg-vignette: oklch(0.995 0.006 250);
+  --surface: oklch(0.995 0.004 250);
+  --surface-raised: oklch(0.925 0.016 250);
+  --border: oklch(0.35 0.02 255 / 10%);
+  --border-strong: oklch(0.35 0.02 255 / 20%);
+  --ink: oklch(0.26 0.02 258);
+  --ink-muted: oklch(0.48 0.018 258);
+  --ink-faint: oklch(0.63 0.014 258);
+  --accent: oklch(0.483 0.19 258);
+  /* Day *-dim tokens are opaque, independently-chosen bright pastels -- NOT a low-alpha
+     wash of the dark text color above. An alpha tint of a dark color reads as diluted/
+     muddy wherever it isn't sitting on pure white (e.g. a chip on the selected list row's
+     solid blue fill came out grayish-brown before this fix), and even on white it read as
+     dishwater-beige rather than a cheerful pastel. A real opaque pastel fill + a
+     separately-tuned dark text color (both still individually verified against WCAG AA
+     4.5:1, see the check below) is the standard "colorful tag" recipe and renders
+     correctly against ANY backdrop. */
+  --accent-dim: oklch(0.9 0.09 258);
+  --accent-ink: oklch(0.99 0 0);
+  /* Deep enough that --accent-ink white text/labels clear 4.5:1 for solid-fill
+     emphasis cards — --accent itself is tuned for buttons/links, not small text.
+     Solid-fill contrast doesn't depend on page background, so this value is shared
+     by both themes unchanged (see night override below, which repeats it verbatim). */
+  --accent-strong: oklch(0.42 0.17 259);
+  --success: oklch(0.473 0.14 152);
+  --success-dim: oklch(0.9 0.1 152);
+  --pending: oklch(0.482 0.16 85);
+  --pending-dim: oklch(0.9 0.11 85);
+  --danger: oklch(0.485 0.19 20);
+  --danger-dim: oklch(0.9 0.09 20);
+
+  /* Funnel Kanban card fills -- day mode only, see the night override below for why it
+     keeps its own darker set instead of sharing these. Light, cheerful pastels (not the
+     muddy low-chroma jewel tones that used to double as both themes' values) with dark
+     --stage-ink text/icons instead of white, each verified at 8.2–10.2:1 against it. */
+  --stage-leads: oklch(0.83 0.13 290);
+  --stage-intro: oklch(0.85 0.11 210);
+  --stage-followup: oklch(0.85 0.16 80);
+  --stage-meeting: oklch(0.85 0.11 258);
+  --stage-contract: oklch(0.84 0.13 160);
+  --stage-lost: oklch(0.84 0.14 15);
+  /* Translucent "glass tag" scrim for chips/buttons sitting on top of a stage card fill
+     (Chip's onColor prop, the Funnel card's notes button) -- day's card fills are light,
+     so the scrim goes light-on-light (a soft frosted white pill), the mirror image of
+     night's dark-on-dark treatment below. Both pair with --stage-ink for on-card text. */
+  --stage-scrim: oklch(1 0 0 / 45%);
+  --stage-scrim-border: oklch(0 0 0 / 12%);
+  --stage-scrim-hover: oklch(1 0 0 / 65%);
+  /* Dedicated on-card text color, deliberately NOT --ink: --ink is tuned for body text
+     against --bg/--surface, and reusing it here under-shot 4.5:1 against several stage
+     fills in night mode (--ink's night value is an "off-white" for readability on a dark
+     canvas at length, a notch dimmer than the near-pure white these saturated fills
+     actually need -- verified against all 12 fills across both themes). */
+  --stage-ink: oklch(0.26 0.02 258);
+
+  --shadow-panel: 0 2px 6px oklch(0 0 0 / 6%), 0 10px 24px -12px oklch(0 0 0 / 12%);
+  --shadow-panel-sm: 0 1px 3px oklch(0 0 0 / 7%);
+  --accent-select: oklch(0.483 0.19 258 / 28%);
+  /* --surface-raised already sits near white (L 0.925), so a *lighter* shimmer sweep
+     (the dark-theme move) would barely register -- go darker instead, the inverse
+     direction, which is the standard light-skeleton convention. */
+  --skeleton-shine: oklch(0.35 0.02 255 / 8%);
+
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  /* Night mode: a genuine second theme, not a desaturated inverse of day mode --
+     deep navy-black (not the old flat neutral gray) so the same colorful identity
+     carries into a dark canvas instead of reverting to a generic dark-app palette. */
+  --bg: oklch(0.16 0.014 258);
+  --bg-vignette: oklch(0.21 0.018 258);
+  --surface: oklch(0.21 0.016 258);
+  --surface-raised: oklch(0.27 0.02 258);
   --border: oklch(1 0 0 / 8%);
   --border-strong: oklch(1 0 0 / 15%);
-  --ink: oklch(0.94 0 0);
-  --ink-muted: oklch(0.68 0.004 260);
-  --ink-faint: oklch(0.5 0.004 260);
+  --ink: oklch(0.94 0.004 258);
+  --ink-muted: oklch(0.68 0.012 258);
+  --ink-faint: oklch(0.5 0.012 258);
   --accent: oklch(0.62 0.19 258);
   --accent-dim: oklch(0.62 0.19 258 / 16%);
   --accent-ink: oklch(0.98 0 0);
-  /* Deep enough that --accent-ink white text/labels clear 4.5:1 for solid-fill
-     emphasis cards — --accent itself is tuned for buttons/links, not small text. */
   --accent-strong: oklch(0.42 0.17 259);
   --success: oklch(0.78 0.14 152);
   --success-dim: oklch(0.78 0.14 152 / 12%);
@@ -22,25 +96,28 @@
   --danger: oklch(0.7 0.16 25);
   --danger-dim: oklch(0.7 0.16 25 / 12%);
 
-  /* Funnel Kanban card fills, one per stage -- each tuned so --accent-ink white text
-     clears WCAG AA 4.5:1 (verified with the dataviz skill's validate_palette.js against
-     a #f8f8f8 text swatch; margins run ~4.8–5.1:1, not bare-minimum) and the six are
-     pairwise distinguishable under simulated protan/deutan color-blindness (adjacent-pair
-     ΔE 9.2+, i.e. above the CVD target, not just its floor). --stage-intro sits slightly
-     under the palette's own chroma-floor heuristic (0.086 vs. 0.10) -- accepted, because
-     that's a chart-legibility guideline, not the hard WCAG contrast rule this is actually
-     bound by; every other slot clears the floor too. */
+  /* Kept from the original single-theme palette: deep, low-chroma jewel tones read fine
+     with white text on a dark canvas, unlike day mode's pastel-fill/dark-text pairing. */
   --stage-leads: oklch(0.555 0.19 290);
   --stage-intro: oklch(0.515 0.086 215);
   --stage-followup: oklch(0.54 0.108 75);
   --stage-meeting: oklch(0.54 0.19 258);
   --stage-contract: oklch(0.52 0.104 165);
   --stage-lost: oklch(0.555 0.19 25);
+  --stage-scrim: oklch(0 0 0 / 20%);
+  --stage-scrim-border: oklch(1 0 0 / 20%);
+  --stage-scrim-hover: oklch(0 0 0 / 35%);
+  --stage-ink: oklch(0.98 0 0);
 
   --shadow-panel: 0 2px 5px oklch(0 0 0 / 35%), 0 10px 28px -14px oklch(0 0 0 / 60%);
   --shadow-panel-sm: 0 1px 3px oklch(0 0 0 / 30%);
   --accent-select: oklch(0.62 0.19 258 / 32%);
+  --skeleton-shine: oklch(1 0 0 / 10%);
 
+  color-scheme: dark;
+}
+
+:root {
   /* Semantic z-index scale — never an arbitrary number. */
   --z-dropdown: 10;
   --z-sticky: 20;
@@ -76,6 +153,10 @@
   --color-stage-meeting: var(--stage-meeting);
   --color-stage-contract: var(--stage-contract);
   --color-stage-lost: var(--stage-lost);
+  --color-stage-scrim: var(--stage-scrim);
+  --color-stage-scrim-border: var(--stage-scrim-border);
+  --color-stage-scrim-hover: var(--stage-scrim-hover);
+  --color-stage-ink: var(--stage-ink);
   --font-sans: var(--font-inter);
 
   --z-index-dropdown: var(--z-dropdown);
@@ -87,17 +168,9 @@
   --z-index-context-menu: var(--z-context-menu);
 }
 
-html {
-  color-scheme: dark;
-}
-
 body {
   background:
-    radial-gradient(
-      ellipse 80% 50% at 50% -10%,
-      oklch(0.25 0.005 260) 0%,
-      oklch(0.18 0.004 260) 60%
-    ),
+    radial-gradient(ellipse 80% 50% at 50% -10%, var(--bg-vignette) 0%, var(--bg) 60%),
     var(--bg);
   color: var(--ink);
   /* Native macOS apps don't let you drag-select their own chrome — only
@@ -162,7 +235,7 @@ button,
   background-image: linear-gradient(
     100deg,
     var(--surface-raised) 40%,
-    oklch(1 0 0 / 10%) 50%,
+    var(--skeleton-shine) 50%,
     var(--surface-raised) 60%
   );
   background-size: 200% 100%;

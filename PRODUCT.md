@@ -22,7 +22,7 @@ founder could imagine running every day, not a demo dressed up to look techy.
 
 ## Anti-references
 
-- Generic SaaS-cream dashboard templates (pastel accents, hero-metric-with-gradient clichés).
+- Generic SaaS-cream dashboard templates and hero-metric-with-gradient clichés — the product's own day-mode palette is deliberately colorful/pastel (see DESIGN.md), but that's a considered, branded color system, not the templated cream-and-gradient look this bullet rejects.
 - Centered, marketing-page-style content columns inside app views — a real desktop app runs its panels edge-to-edge, it doesn't pad content like a landing page.
 - Cluttered/dated enterprise CRM density (Salesforce/HubSpot-era table walls with no whitespace).
 - The old terminal/monospace-chrome identity this product used to have — retired in favor of the native-macOS direction above; don't reintroduce uppercase-tracked mono labels or a single-accent-does-everything color system.
@@ -37,6 +37,6 @@ founder could imagine running every day, not a demo dressed up to look techy.
 
 ## Accessibility & Inclusion
 
-- Standard WCAG AA contrast targets on the dark theme (body text ≥4.5:1, large/label text ≥3:1) even against the dark background and muted grays.
+- Standard WCAG AA contrast targets in both day and night themes (body text ≥4.5:1, large/label text ≥3:1), including every pastel chip's fill/text pairing, not just the neutral background/ink combinations.
 - Respect `prefers-reduced-motion` for the live clock tick and any status-pill pulse — provide a static/non-animated fallback.
 - No functionality gated behind hover-only or color-only signals (status chips pair color with text/label, not color alone).

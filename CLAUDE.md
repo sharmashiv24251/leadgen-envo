@@ -184,9 +184,20 @@ just the snapshot.
   the synchronous `people/match` response's singular `person` object — `wk-phone-webhook`
   originally read `phone_numbers` off the payload root, which would've silently written
   `not_found` for every real webhook delivery too, exactly the same failure mode as bug #1 just
-  one layer further down the pipe. Fixed by reading `payload.people?.[0]?.phone_numbers`. Still
-  not yet exercised against a contact Apollo actually has phone data for — only confirmed to
-  correctly reach `pending`/`not_found` live, not the full `verified` webhook path end-to-end.
+  one layer further down the pipe. Fixed by reading `payload.people?.[0]?.phone_numbers`.
+
+  **Root cause of "stuck in pending forever," confirmed 2026-07-20: this Apollo account's phone
+  access expired (~8 days before mobile-credit access was fully removed per Shivansh) — not a
+  code bug.** Diagnostic logging showed the sync `people/match` response's `person` object has no
+  `phone_numbers` key at all, under two different request shapes (identifying fields in the body,
+  then matching Apollo's own doc example with them as query params instead) — Apollo isn't
+  queuing a phone job at all, so no webhook was ever going to arrive regardless of how long it
+  polled. **The implementation itself is correct and doesn't need to change** once phone access is
+  back on a paid plan — same `wk-reveal-phone` → Apollo → `wk-phone-webhook` → `contacts` →
+  polling UI flow should just start working. Temporary diagnostic `console.log`s added during this
+  investigation have been removed. Still genuinely unverified end-to-end: the `verified` path (an
+  actual number arriving via webhook) has never been observed, only `pending`/`not_found`. First
+  real test should happen once Apollo phone credits are restored.
   **Fourth gap, also fixed:** the `'pending'` UI state had no escape hatch at all -- if Apollo's
   webhook never arrives (missing mobile-phone credits on the plan, delivery failure, anything),
   the button showed "Revealing…" with no way to retry, forever, since it wasn't even rendered as

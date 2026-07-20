@@ -13,13 +13,15 @@ import {
 } from "@dnd-kit/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useState } from "react";
-import type { ChipTone } from "@/components/Chip";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Chip from "@/components/Chip";
 import { FunnelBoardSkeleton } from "@/components/Skeleton";
+import { PencilIcon, StickyNoteCard } from "@/components/StickyNoteCard";
 import type { ProspectListItem } from "@/lib/data";
 import {
   FUNNEL_COLUMNS,
+  FUNNEL_STAGE_CARD_BG,
   getFunnelColumn,
   LOST_REASONS,
   MANUAL_STAGES,
@@ -30,29 +32,206 @@ import { setContactStage } from "@/lib/outreachApi";
 import { queryKeys } from "@/lib/queryKeys";
 import { statusTone } from "@/lib/status";
 import { useAccountMode, useAllProspectsLean } from "@/lib/useAccountData";
+import { useContactNotes } from "@/lib/useContactNotes";
 
-const DOT_BG: Record<ChipTone, string> = {
-  success: "bg-success",
-  pending: "bg-pending",
-  neutral: "bg-ink-faint",
-  danger: "bg-danger",
-  accent: "bg-accent",
-};
+const NOTES_POPOVER_WIDTH = 432;
+const NOTES_POPOVER_PREFERRED_HEIGHT = 480;
+const NOTES_POPOVER_GAP = 8;
+const NOTES_POPOVER_MARGIN = 12;
 
-function FunnelCardContent({ prospect }: { prospect: ProspectListItem }) {
+type PopoverPosition = { left: number; maxHeight: number } & (
+  | { anchor: "above"; bottom: number }
+  | { anchor: "below"; top: number }
+);
+
+// Every card can sit anywhere on screen (top row, bottom row, left/right edge of a scrolled
+// column), so the popover can't use a single fixed CSS rule -- it measures the trigger button's
+// actual screen position and flips/clamps against the viewport instead. Anchoring from the edge
+// that actually touches the button (bottom-edge-relative when opening upward, top-edge-relative
+// when opening downward) instead of a precomputed height keeps it flush against the button no
+// matter how tall its content renders -- computing a `top` from an assumed height (and only
+// capping with `maxHeight`) let the box float away from the button whenever real content was
+// shorter than that assumption, which looked like the popover belonged to some other card.
+function computeNotesPopoverPosition(rect: DOMRect): PopoverPosition {
+  const spaceAbove = Math.max(0, rect.top - NOTES_POPOVER_GAP - NOTES_POPOVER_MARGIN);
+  const spaceBelow = Math.max(0, window.innerHeight - rect.bottom - NOTES_POPOVER_GAP - NOTES_POPOVER_MARGIN);
+  const openUpward = spaceAbove >= spaceBelow;
+  const maxHeight = Math.min(NOTES_POPOVER_PREFERRED_HEIGHT, openUpward ? spaceAbove : spaceBelow);
+
+  const left = Math.min(
+    Math.max(rect.right - NOTES_POPOVER_WIDTH, NOTES_POPOVER_MARGIN),
+    window.innerWidth - NOTES_POPOVER_WIDTH - NOTES_POPOVER_MARGIN
+  );
+
+  return openUpward
+    ? { anchor: "above", left, maxHeight, bottom: window.innerHeight - rect.top + NOTES_POPOVER_GAP }
+    : { anchor: "below", left, maxHeight, top: rect.bottom + NOTES_POPOVER_GAP };
+}
+
+// Card-level notes entry point: a small pencil button in the bottom-right corner that opens a
+// hover popover with the same contact_notes CRUD used on the prospect detail page's floating
+// widget (see ContactNotes.tsx / lib/useContactNotes.ts). The popover is portaled to
+// document.body and positioned with `fixed` + a measured rect (computeNotesPopoverPosition)
+// rather than `absolute` inside the card, so it's never clipped by the card/column and always
+// flips to whichever side of the button actually has room. The card sits inside a draggable
+// (dnd-kit) Next.js Link, so the trigger's own click/pointerdown must stopPropagation /
+// preventDefault to keep it from navigating to the detail page or kicking off a drag.
+function CardNotesButton({ contactId }: { contactId: string }) {
+  const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState<PopoverPosition | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { notes, draft, setDraft, addMutation, updateMutation, deleteMutation } = useContactNotes(contactId, {
+    enabled: open,
+  });
+
+  useEffect(() => () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    function reposition() {
+      if (buttonRef.current) setPosition(computeNotesPopoverPosition(buttonRef.current.getBoundingClientRect()));
+    }
+    window.addEventListener("scroll", reposition, true);
+    window.addEventListener("resize", reposition);
+    return () => {
+      window.removeEventListener("scroll", reposition, true);
+      window.removeEventListener("resize", reposition);
+    };
+  }, [open]);
+
+  function openNow() {
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+    if (buttonRef.current) setPosition(computeNotesPopoverPosition(buttonRef.current.getBoundingClientRect()));
+    setOpen(true);
+  }
+
+  function closeSoon() {
+    closeTimer.current = setTimeout(() => setOpen(false), 150);
+  }
+
+  return (
+    <>
+      <div
+        className="absolute bottom-2 right-2"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <button
+          ref={buttonRef}
+          type="button"
+          aria-label="Edit notes"
+          onMouseEnter={openNow}
+          onMouseLeave={closeSoon}
+          onClick={() => (open ? setOpen(false) : openNow())}
+          className="flex h-7 w-7 items-center justify-center rounded-full border border-white/20 bg-black/20 text-accent-ink shadow-[var(--shadow-panel-sm)] transition-colors hover:bg-black/35"
+        >
+          <PencilIcon className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {open &&
+        position &&
+        createPortal(
+          <div
+            onMouseEnter={openNow}
+            onMouseLeave={closeSoon}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            style={{
+              ...(position.anchor === "above" ? { bottom: position.bottom } : { top: position.top }),
+              left: position.left,
+              width: NOTES_POPOVER_WIDTH,
+              maxHeight: position.maxHeight,
+            }}
+            className="fixed z-modal flex flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-[var(--shadow-panel)]"
+          >
+            <div className="flex items-center justify-between border-b border-border px-3 py-2">
+              <span className="text-xs font-medium text-ink">Notes</span>
+              <span className="rounded-full border border-border px-2 py-0.5 text-xs text-ink-muted">
+                {notes.length}
+              </span>
+            </div>
+
+            <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-2">
+              {notes.length === 0 && <p className="px-1 py-1 text-xs text-ink-muted">No notes yet.</p>}
+              {notes.map((note) => (
+                <StickyNoteCard
+                  key={note.id}
+                  note={note}
+                  onSave={(text) => updateMutation.mutate({ id: note.id, text })}
+                  onDelete={() => deleteMutation.mutate(note.id)}
+                />
+              ))}
+            </div>
+
+            <div className="flex flex-col gap-1.5 border-t border-border p-2">
+              <textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                rows={2}
+                placeholder="Add a note…"
+                className="w-full resize-y rounded-lg border border-border bg-bg px-2 py-1.5 text-xs leading-relaxed text-ink outline-none focus:border-accent"
+              />
+              {addMutation.error && (
+                <p className="rounded-lg border border-danger/30 bg-danger-dim px-2 py-1.5 text-xs text-danger">
+                  {addMutation.error.message || "Failed to save note."}
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => addMutation.mutate()}
+                disabled={addMutation.isPending || !draft.trim()}
+                className="w-fit rounded-full bg-accent-strong px-3 py-1.5 text-xs font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-50 active:scale-[0.97]"
+              >
+                {addMutation.isPending ? "Saving…" : "Add note"}
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
+    </>
+  );
+}
+
+function FunnelCardContent({
+  prospect,
+  showNotes = true,
+}: {
+  prospect: ProspectListItem;
+  showNotes?: boolean;
+}) {
   const stageCol = getFunnelColumn(prospect.stage);
   return (
-    <div className="flex flex-col gap-2 rounded-2xl border border-border bg-surface p-3.5 shadow-[var(--shadow-panel-sm)]">
+    <div
+      className={`relative flex flex-col gap-2 rounded-2xl p-3.5 shadow-[var(--shadow-panel-sm)] ${FUNNEL_STAGE_CARD_BG[prospect.stage]}`}
+    >
       <div className="flex items-start justify-between gap-2">
-        <span className="truncate text-sm font-medium text-ink">{prospect.name}</span>
-        <Chip tone={statusTone[prospect.status]}>{prospect.status}</Chip>
+        <span className="truncate text-sm font-medium text-accent-ink">{prospect.name}</span>
+        <Chip tone={statusTone[prospect.status]} onColor>
+          {prospect.status}
+        </Chip>
       </div>
-      <span className="truncate text-xs text-ink-muted">
+      <span className="truncate text-xs text-accent-ink">
         {prospect.title} · {prospect.company}
       </span>
       <div>
-        <Chip tone={stageCol.tone}>{stageCol.label}</Chip>
+        <Chip tone={stageCol.tone} onColor>
+          {stageCol.label}
+        </Chip>
       </div>
+      {showNotes && <CardNotesButton contactId={prospect.id} />}
     </div>
   );
 }
@@ -88,7 +267,7 @@ function FunnelColumn({
   return (
     <div className="flex w-72 shrink-0 flex-col gap-3">
       <div className="flex items-center gap-2 px-1">
-        <span className={`h-2 w-2 shrink-0 rounded-full ${DOT_BG[col.tone]}`} aria-hidden />
+        <span className={`h-2 w-2 shrink-0 rounded-full ${FUNNEL_STAGE_CARD_BG[col.key]}`} aria-hidden />
         <h3 className="text-sm font-medium text-ink">{col.label}</h3>
         <span className="rounded-full border border-border px-2 py-0.5 text-xs text-ink-muted">
           {items.length}
@@ -256,7 +435,7 @@ export default function FunnelBoard() {
         <DragOverlay>
           {activeProspect ? (
             <div className="w-72 rotate-1 opacity-95">
-              <FunnelCardContent prospect={activeProspect} />
+              <FunnelCardContent prospect={activeProspect} showNotes={false} />
             </div>
           ) : null}
         </DragOverlay>

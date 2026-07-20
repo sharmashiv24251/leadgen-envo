@@ -33,6 +33,19 @@ export function getFunnelColumn(stage: FunnelStage): { key: FunnelStage; label: 
   return FUNNEL_COLUMNS.find((c) => c.key === stage) ?? FUNNEL_COLUMNS[0];
 }
 
+// The Funnel Kanban card's full solid-fill background, one distinct color per stage (see the
+// --stage-* tokens in app/globals.css for the WCAG/CVD tuning notes) -- deliberately separate
+// from FUNNEL_COLUMNS' `tone` field above, which stays on the shared 5-value ChipTone system
+// used by chips elsewhere (detail page, sidebar) that were never meant to carry 6 unique hues.
+export const FUNNEL_STAGE_CARD_BG: Record<FunnelStage, string> = {
+  leads: "bg-stage-leads",
+  intro_sent: "bg-stage-intro",
+  follow_up_sent: "bg-stage-followup",
+  meeting_booked: "bg-stage-meeting",
+  contract: "bg-stage-contract",
+  deal_lost: "bg-stage-lost",
+};
+
 export const LOST_REASONS: { key: LostReason; label: string }[] = [
   { key: "no_response", label: "No response" },
   { key: "no_interest", label: "No interest" },

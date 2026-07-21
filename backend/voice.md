@@ -20,7 +20,7 @@ Founder-to-founder. Direct. Specific. No ceremony. The recipient should feel stu
 >
 > We're building Workenvo, an AI layer that plugs into the tools you already use and flags early signals around burnout, friction and attrition before they show up in the numbers. Aggregate only, no individual surveillance.
 >
-> We're already piloting with teams at Mercedes-Benz and have room for a couple more.
+> Mercedes-Benz and Vodafone are on it already. Wondering if it's worth a look for your team.
 >
 > Open to 15 minutes this or next week?
 >
@@ -39,6 +39,19 @@ Founder-to-founder. Direct. Specific. No ceremony. The recipient should feel stu
 
 ## Banned phrases (AI tells — cut on sight)
 delve, leverage, seamless, robust, cutting-edge, game-changer, revolutionise, unlock, elevate, navigate (figuratively), tapestry, testament, landscape ("today's landscape"), realm, foster (filler), moreover, furthermore, "it's worth noting", "I hope this email finds you well", "I wanted to reach out", "I trust you're well", "in today's fast-paced world", "at the end of the day", "circle back", "touch base", "synergy", "holistic", "empower", "supercharge", "transform your business", "take it to the next level", "needless to say", "that being said". Also avoid three-part lists everywhere and overuse of "not just X, but Y".
+
+## Social proof line
+Never write "room for a couple more" or any fixed version of that sentence — it's the line
+most likely to show up unchanged across many emails, and the moment a prospect (or a
+colleague forwarding two of these) sees it twice, the whole email reads templated. Vary the
+phrasing every time, matching the specific companies to whichever pilots are actually live.
+Rotate the structure, not just the wording — for example:
+- "Mercedes-Benz and Vodafone are on it already. Wondering if it's worth a look for your team."
+- "Mercedes-Benz and Vodafone are already using this to catch things before they become exits. Might be useful for you too."
+- "Mercedes-Benz and Vodafone teams already use it. You're in good company if you want in."
+Those are examples of the register and variety expected, not a list to cycle through verbatim —
+write a fresh line each time in that spirit, and don't repeat the same phrasing across
+consecutive emails.
 
 ## Buyer vs champion ask
 - **Buyer** (owns the pain): "Open to 15 minutes this or next week?"

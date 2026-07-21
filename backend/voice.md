@@ -46,7 +46,27 @@ delve, leverage, seamless, robust, cutting-edge, game-changer, revolutionise, un
 Pick one. Never staple both into one email.
 
 ## Subject lines
-Three options, all specific to this person or their moment. No generic bait ("Quick question", "An idea for you"). Tie to the hook. Six to nine words, sentence case, no clickbait punctuation.
+Three options, each 2–4 words. About them, never about Workenvo — no selling, no product
+language, nothing that hints this is outreach. Internal camo: it should read like an email
+from someone they already know, not an unfamiliar one. Informal casing (lowercase is fine),
+not Title Case — Title Case reads as a headline, which is the opposite of camo. No clickbait
+punctuation.
+
+Bad (reads as external/sales, not internal):
+- "Digital Transformation at Skadden Law" — a case-study headline, screams marketing.
+- "Armand, quick question?" — the classic cold-email trope; recognisable as bait, not camo.
+
+Good:
+- "wrasslin" — a specific, private-feeling detail. The opposite of a pitch.
+- If a company name fits naturally, prefer a recognisable PAST employer over their actual
+  current company — a well-known former employer reads like an old colleague ("Pepsi days"),
+  where naming their current company reads like a sales subject line. Rank: well-known past
+  employer > less notable past employer > current company, only naming the current company
+  if nothing better fits.
+
+Still tie every option to something true and specific about them — understated, not a
+headline. If no name-drop or private-feeling detail fits, that prospect may not have a strong
+enough hook; don't force a generic subject just to hit the word count.
 
 ## Signature
 Saransh

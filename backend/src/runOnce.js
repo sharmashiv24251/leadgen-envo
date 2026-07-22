@@ -3,12 +3,51 @@ import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import { supabase, getClientId } from "./supabaseClient.js";
 import { downloadSkillFiles } from "./downloadSkillFiles.js";
-import { attachLiveLogger } from "./streamLogger.js";
+import { attachLiveLogger, attachPlainLogger } from "./streamLogger.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const WORKSPACE_DIR = path.join(__dirname, "..", "workspace");
+const WORKSPACE_ROOT = path.join(__dirname, "..", "workspace");
 const RUN_TIMEOUT_MS = 25 * 60 * 1000;
 export const MAX_PROSPECTS_PER_RUN = 3;
+
+// Each client gets its own workspace subdirectory. Workenvo and The HR Company run as
+// separate systemd services on the same VM and can legitimately overlap in time (the
+// mutual-exclusion check below is scoped per client_id) — sharing one workspace dir would
+// mean two concurrently-running agents clobbering each other's skill files/cwd mid-run.
+function workspaceDirFor(clientSlug) {
+  return path.join(WORKSPACE_ROOT, clientSlug);
+}
+
+// Builds the child-process spawn args for this client's agent runtime. Claude Code
+// (workenvo) is invoked via its project slash command with structured stream-json output;
+// Antigravity (thehrcompany) has no slash-command convention or structured output mode, so
+// it gets a literal instruction prompt telling it which file to read first.
+function buildAgentSpawn(clientSlug, safeCount) {
+  if (clientSlug === "thehrcompany") {
+    const prompt =
+      `Read the file SKILL.md in your current working directory in full — it contains your ` +
+      `complete instructions, including which other files (product.md, icp.md, voice.md) to ` +
+      `read and in what order. Follow it exactly and produce ${safeCount} complete email draft(s) ` +
+      `this run (count=${safeCount}).`;
+    return {
+      command: "agy",
+      args: ["-p", prompt, "--dangerously-skip-permissions"],
+      attachLogger: (child, opts) => attachPlainLogger(child, opts),
+    };
+  }
+
+  return {
+    command: "claude",
+    args: [
+      "-p", `/start-outreach-workenvo ${safeCount}`,
+      "--model", "sonnet",
+      "--dangerously-skip-permissions",
+      "--verbose",
+      "--output-format", "stream-json",
+    ],
+    attachLogger: (child, opts) => attachLiveLogger(child, opts),
+  };
+}
 
 // Retry tuning for runBatch() when a chunk comes back blocked_claude.
 const DEFAULT_RETRY_DELAY_MS = 5 * 60 * 1000; // used when we never saw a rate_limit_event to time off
@@ -131,25 +170,23 @@ export async function runOnce({ count = 1 } = {}) {
   console.log(`[runOnce] run ${runId} started`);
   activeRun = { runId, clientId, child: null, settled: false };
 
-  await downloadSkillFiles(WORKSPACE_DIR);
+  const workspaceDir = workspaceDirFor(clientSlug);
+  await downloadSkillFiles(workspaceDir, clientSlug);
 
   // Rate-limit telemetry fires on every request regardless of whether it actually
   // blocked anything — we just track the furthest-out resetsAt seen as our best guess
-  // for when to retry if this run does end up blocked_claude.
+  // for when to retry if this run does end up blocked_claude. Only Claude Code emits this;
+  // agy runs simply never populate it.
   let lastRateLimitResetsAtMs = null;
+
+  const { command, args, attachLogger } = buildAgentSpawn(clientSlug, safeCount);
 
   const exitCode = await new Promise((resolve, reject) => {
     const child = spawn(
-      "claude",
-      [
-        "-p", `/start-outreach-workenvo ${safeCount}`,
-        "--model", "sonnet",
-        "--dangerously-skip-permissions",
-        "--verbose",
-        "--output-format", "stream-json",
-      ],
+      command,
+      args,
       {
-        cwd: WORKSPACE_DIR,
+        cwd: workspaceDir,
         env: {
           ...process.env,
           SUPABASE_FN_URL: process.env.SUPABASE_FN_URL,
@@ -162,7 +199,7 @@ export async function runOnce({ count = 1 } = {}) {
     );
 
     activeRun.child = child;
-    attachLiveLogger(child, {
+    attachLogger(child, {
       label: `run:${runId.slice(0, 8)}`,
       onRateLimit: (info) => {
         if (!info?.resetsAt) return;
@@ -196,17 +233,20 @@ export async function runOnce({ count = 1 } = {}) {
   const { data: after } = await supabase.from("runs").select("status").eq("id", runId).single();
   let finalStatus = after?.status;
   if (finalStatus === "running") {
-    const failStatus = exitCode === 0 ? "failed" : "blocked_claude";
+    // "blocked_claude" is the original, specific status Workenvo's dashboard/runBatch retry
+    // logic already keys on; agy failures get their own "blocked_agent" status instead of
+    // reusing a Claude-specific name that would be misleading in the runs table.
+    const failStatus = exitCode === 0 ? "failed" : (command === "claude" ? "blocked_claude" : "blocked_agent");
     await supabase
       .from("runs")
       .update({ status: failStatus, error: `exit code ${exitCode}`, finished_at: new Date().toISOString() })
       .eq("id", runId);
     await writeNotification(clientId, {
       level: "error",
-      source: "claude",
+      source: command,
       title: "Run didn't complete",
-      detail: `claude -p exited with code ${exitCode} (or timed out) and never reported completion via wk-notify.`,
-      action_hint: "Check Claude Code auth/rate limits, then retry.",
+      detail: `${command} -p exited with code ${exitCode} (or timed out) and never reported completion via wk-notify.`,
+      action_hint: `Check ${command} auth/rate limits, then retry.`,
     });
     console.error(`[runOnce] run ${runId} marked ${failStatus}`);
     finalStatus = failStatus;
@@ -242,7 +282,7 @@ export async function runBatch(totalCount) {
       return { status: "stopped_busy", remaining };
     }
 
-    if (result?.status === "blocked_claude") {
+    if (result?.status === "blocked_claude" || result?.status === "blocked_agent") {
       retries += 1;
       if (retries > MAX_RETRIES_PER_BATCH) {
         console.error(`[runBatch] giving up after ${MAX_RETRIES_PER_BATCH} retries — ${remaining} prospect(s) left undone for today`);

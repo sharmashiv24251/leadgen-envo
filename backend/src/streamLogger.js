@@ -74,3 +74,20 @@ export function attachLiveLogger(child, { label = "agent", onRateLimit } = {}) {
 
   return rl;
 }
+
+// agy (Antigravity CLI) has no structured/JSON output mode — only plain final text on
+// stdout. Just prefix and forward each line; there's no rate-limit telemetry to parse.
+export function attachPlainLogger(child, { label = "agent" } = {}) {
+  const rl = readline.createInterface({ input: child.stdout });
+
+  rl.on("line", (line) => {
+    if (!line.trim()) return;
+    console.log(`[${label}] ${line}`);
+  });
+
+  child.stderr.on("data", (chunk) => {
+    process.stderr.write(`[${label}:stderr] ${chunk}`);
+  });
+
+  return rl;
+}

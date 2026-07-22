@@ -214,6 +214,90 @@ just the snapshot.
   advisor caught immediately after `prospect_feed` was first created (fixed with
   `security_invoker = true`).
 
+## Second client onboarding (The HR Company) — started 2026-07-22, in progress
+
+Piloting the whole system with a second real client for the first time: **The HR Company**
+(Ireland-based HR outsourcing, contact Bianca, `bianca@thehrcompany.ie`). Explicit scope
+decision from Shivansh: this is Workenvo (own tool) + one pilot client, full stop, for the
+foreseeable future — build simple per-client branches, not a generic N-tenant plugin framework.
+Same Supabase project (`nxseeggqmfhpnxjlnmaz`) always — a second project was explicitly ruled
+out even though the agent runtime and send provider both differ from Workenvo's.
+
+- **Agent runtime is Antigravity CLI (`agy`), not Claude Code, for this client** — Google's
+  agentic coding tool, Gemini 3.6 Flash model, authenticated via the client's own Gemini API
+  key (not OAuth). Confirmed working headless (`agy -p "prompt"`, no browser popup) both
+  locally and on the actual `outreach-leadgen` VM. Proven end-to-end against real production
+  Workenvo Supabase data as a capability test (found/verified/researched/drafted a real
+  prospect, Thomas Forstner @ Juro, quality comparable to Claude Code's output) before writing
+  any HR-Company-specific files. `agy`'s subagent mechanism is real but implicit (a monitorable
+  `/agents` panel, not a named tool like Claude Code's `Task`) — skill files now phrase
+  delegation tool-agnostically ("spawn a dedicated subagent") so the same wording is correct
+  for either agent.
+- **Send provider will be Outlook/Microsoft 365** (Bianca's mailbox), not Gmail. Access model
+  — org-wide Azure AD app registration (Gmail-delegation equivalent) vs. single delegated
+  mailbox — **not decided yet**, deferred pending a conversation with Bianca. No Outlook-side
+  Edge Function exists yet; it should follow `wk-send-email`'s exact pattern (Postgres trigger
+  on `email_messages` → `pg_net` → new function → Microsoft Graph) once the access model lands.
+- **Edge Functions are now multi-tenant-aware.** `wk-check-contacted`, `wk-find-email`,
+  `wk-insert-draft`, and `wk-notify` previously hardcoded `client_id` to the `workenvo` row
+  no matter what — a real bug that would have silently written The HR Company's contacts/drafts
+  under Workenvo's data. Fixed 2026-07-22: all four now resolve `client_id` from an explicit
+  `client_slug` field in the request body, defaulting to `"workenvo"` when absent (fully
+  backward compatible — verified live, the no-`client_slug` path returns byte-identical
+  behavior). An unrecognized `client_slug` fails loudly (500) rather than silently falling back
+  to Workenvo — deliberate, matches this codebase's existing fail-loud philosophy elsewhere.
+  Versions: `wk-check-contacted` v3→v4, `wk-find-email` v5→v6, `wk-insert-draft` v6→v7,
+  `wk-notify` v3→v4.
+- **`clients` row seeded**: slug `thehrcompany`, `send_provider='outlook'`, plus a `config` row
+  with `daily_quota=10`, `auto_send=false`, and **`paused=true`** as a deliberate safety default
+  — nothing can actually run for this client until it's turned off, since the Apollo key and
+  Outlook sending aren't wired up yet. No new `total_quota` concept was needed: the existing
+  `MAX_PROSPECTS_PER_RUN=3` + `runBatch()` chunking in `runOnce.js` already does "3 at a time,
+  keep going," so "10 emails/day" is just this `daily_quota` value — `runBatch(10)` naturally
+  chunks into 3+3+3+1.
+- **New storage bucket `thehrcompany-skill`** created (private, mirrors `workenvo-skill`).
+- **New skill files drafted** at repo root in `The HR Company/` (deliberately separate from
+  `backend/`, which holds Workenvo's files directly, for per-client bookkeeping) — `icp.md`,
+  `product.md`, `voice.md`, `SKILL.md`. Sender persona is Bianca. Adapted from Workenvo's files
+  (same four-move email structure, same hard rules about VERIFIED-only facts) but: subject-line
+  guidance deliberately simplified (Workenvo's rigid 2-4-word formula and its "wrasslin"
+  example were called out as the one weak part, not reused); "hook material" reworked because
+  most of this ICP's real triggers (a bad disciplinary, a WRC case) are private and
+  unsearchable, so the file points at public correlates instead (HR/admin job postings, new
+  sites, public WRC records, CRO incorporation dates for the secondary ICP); the privacy line
+  is replaced with a "trust line" defusing a different objection ("I'll pay for a document
+  portal and still be alone when something happens," not a data-privacy concern); pricing and
+  client-logo social proof are explicitly marked unknown in `product.md` rather than invented.
+  **Not yet uploaded to the `thehrcompany-skill` bucket.**
+- **Apollo per-client key routing — done (2026-07-22).** `wk-find-email` now maps `client_slug`
+  to the right Apollo secret (`workenvo`→`APOLLO_API_KEY`, `thehrcompany`→
+  `APOLLO_API_KEY_THEHRCOMPANY`), fails loudly on an unrecognized slug, and is live-verified
+  (a real lookup against Bianca's own Apollo account returned a clean no-match, not an auth
+  error).
+- **`agy` installed and authenticated directly on `outreach-leadgen`, 2026-07-22** — confirmed
+  working with a clean `hi` response, no errors. Landed on `info@envo.club (Antigravity
+  Business)` via Google OAuth — a Workspace-level plan whose actual billing terms are
+  unverified, **not** the dedicated AI-Studio API key + Leadgen GCP project billing that was
+  separately confirmed safe (spend cap set; real `Cost − Savings = €0.00` evidence on that
+  billing account). Two different, both-currently-untroubled mechanisms — don't assume one's
+  safety extends to the other without checking. The authenticated OS user is `info`
+  (`info@outreach-leadgen`), which the new `thehrcompany-scheduler` systemd service must match
+  exactly (`User=info`) — credentials are cached per-OS-user, not machine-wide. Getting here hit
+  a real CLI bug along the way (a PKCE `Code Challenge must be base64 encoded` error on the
+  "Use a Google Cloud project" login path, worked around by retrying) and confirmed this CLI
+  version's login menu has no plain API-key-paste option at all, only OAuth or GCP-project
+  choices — contrary to the original plan.
+- **Still not done:** `runOnce.js`/the scheduler still only knows how to spawn
+  `claude`; nothing yet branches per client to spawn `agy` instead, and `agy`'s output has no
+  confirmed structured/JSON logging mode (`--help` shows no such flag; only plain final-text
+  output confirmed), so `streamLogger.js`'s stream-json parser can't be reused as-is for this
+  client's runs. The frontend's `thehrcompany` login is still the original 100%-mock account —
+  plan is to repoint it at real Supabase data scoped to this client's `client_id` (same shape as
+  `lib/workenvoData.ts`) and drop the mock wiring entirely, not yet done. Cross-client run
+  scheduling needs no code changes (`runOnce.js`'s run-in-progress check is already scoped per
+  `client_id`, confirmed by reading it) — Shivansh plans to stagger run times informally, no
+  hard mutual-exclusion rule required.
+
 ## Not built yet / explicitly deferred
 - CI/CD is manual by choice (redeploy = SSH + `git pull` + restart, not on every push).
 - No alerting if the scheduler process goes down and stays down.

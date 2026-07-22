@@ -1,4 +1,6 @@
 import path from "node:path";
+import os from "node:os";
+import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import { supabase, getClientId } from "./supabaseClient.js";
@@ -18,6 +20,17 @@ function workspaceDirFor(clientSlug) {
   return path.join(WORKSPACE_ROOT, clientSlug);
 }
 
+// `agy` installs per-user at ~/.local/bin/agy (confirmed on both the Mac and the VM) -- that
+// directory is only added to PATH by .bashrc/.profile, which are sourced for interactive login
+// shells (like a manual SSH session) but NOT for a systemd service, which starts with a minimal
+// default PATH. Resolve the actual per-user path directly instead of depending on spawn()'s PATH
+// lookup at all; fall back to the bare command name if that specific file doesn't exist (e.g. a
+// future global install), since `spawn()` never invokes a shell so it can't expand `~` itself.
+function resolveAgyCommand() {
+  const perUserPath = path.join(os.homedir(), ".local", "bin", "agy");
+  return fs.existsSync(perUserPath) ? perUserPath : "agy";
+}
+
 // Builds the child-process spawn args for this client's agent runtime. Claude Code
 // (workenvo) is invoked via its project slash command with structured stream-json output;
 // Antigravity (thehrcompany) has no slash-command convention or structured output mode, so
@@ -30,7 +43,7 @@ function buildAgentSpawn(clientSlug, safeCount) {
       `read and in what order. Follow it exactly and produce ${safeCount} complete email draft(s) ` +
       `this run (count=${safeCount}).`;
     return {
-      command: "agy",
+      command: resolveAgyCommand(),
       args: ["-p", prompt, "--dangerously-skip-permissions"],
       attachLogger: (child, opts) => attachPlainLogger(child, opts),
     };
@@ -181,7 +194,12 @@ export async function runOnce({ count = 1 } = {}) {
 
   const { command, args, attachLogger } = buildAgentSpawn(clientSlug, safeCount);
 
-  const exitCode = await new Promise((resolve, reject) => {
+  // spawnError (e.g. ENOENT if `command` isn't found/executable) is captured via resolve(),
+  // not reject() -- rejecting here would throw past all the "mark this run failed" bookkeeping
+  // below and leave the `runs` row stuck at status='running' forever, exactly the kind of
+  // stale-row bug already found and fixed once elsewhere in this project for run_requests.
+  let spawnError = null;
+  const exitCode = await new Promise((resolve) => {
     const child = spawn(
       command,
       args,
@@ -215,7 +233,8 @@ export async function runOnce({ count = 1 } = {}) {
 
     child.on("error", (err) => {
       clearTimeout(timeout);
-      reject(err);
+      spawnError = err;
+      resolve(null); // the process never actually started -- treat as a failed run, not a crash
     });
     child.on("exit", (code) => {
       clearTimeout(timeout);
@@ -236,17 +255,22 @@ export async function runOnce({ count = 1 } = {}) {
     // "blocked_claude" is the original, specific status Workenvo's dashboard/runBatch retry
     // logic already keys on; agy failures get their own "blocked_agent" status instead of
     // reusing a Claude-specific name that would be misleading in the runs table.
-    const failStatus = exitCode === 0 ? "failed" : (command === "claude" ? "blocked_claude" : "blocked_agent");
+    const failStatus = spawnError ? "blocked_agent" : (exitCode === 0 ? "failed" : (command === "claude" ? "blocked_claude" : "blocked_agent"));
+    const errorDetail = spawnError ? `failed to start "${command}": ${spawnError.message}` : `exit code ${exitCode}`;
     await supabase
       .from("runs")
-      .update({ status: failStatus, error: `exit code ${exitCode}`, finished_at: new Date().toISOString() })
+      .update({ status: failStatus, error: errorDetail, finished_at: new Date().toISOString() })
       .eq("id", runId);
     await writeNotification(clientId, {
       level: "error",
       source: command,
       title: "Run didn't complete",
-      detail: `${command} -p exited with code ${exitCode} (or timed out) and never reported completion via wk-notify.`,
-      action_hint: `Check ${command} auth/rate limits, then retry.`,
+      detail: spawnError
+        ? `Failed to start "${command}": ${spawnError.message}`
+        : `${command} -p exited with code ${exitCode} (or timed out) and never reported completion via wk-notify.`,
+      action_hint: spawnError
+        ? `Confirm "${command}" is installed and reachable for this service's user, then retry.`
+        : `Check ${command} auth/rate limits, then retry.`,
     });
     console.error(`[runOnce] run ${runId} marked ${failStatus}`);
     finalStatus = failStatus;

@@ -311,7 +311,13 @@ export async function runBatch(totalCount) {
       return { status: "stopped_busy", remaining };
     }
 
-    if (result?.status === "blocked_claude" || result?.status === "blocked_agent") {
+    // "failed" is included here deliberately -- it's what runOnce() returns both when the
+    // process was interrupted by a shutdown signal (e.g. a service restart mid-run) and when
+    // the agent exited cleanly (code 0) without ever reporting completion via wk-notify.
+    // Neither means the chunk actually completed; before this fix, "failed" fell through to
+    // the success path below (remaining -= chunk), which is exactly what silently marked a
+    // batch "done" with zero contacts actually created after a restart interrupted it mid-run.
+    if (result?.status === "blocked_claude" || result?.status === "blocked_agent" || result?.status === "failed") {
       retries += 1;
       if (retries > MAX_RETRIES_PER_BATCH) {
         console.error(`[runBatch] giving up after ${MAX_RETRIES_PER_BATCH} retries — ${remaining} prospect(s) left undone for today`);
@@ -320,7 +326,7 @@ export async function runBatch(totalCount) {
       const waitMs = result.resetsAt
         ? Math.max(result.resetsAt - Date.now() + RETRY_BUFFER_MS, 30_000)
         : DEFAULT_RETRY_DELAY_MS;
-      console.log(`[runBatch] Claude blocked (attempt ${retries}/${MAX_RETRIES_PER_BATCH}) — waiting ${Math.round(waitMs / 60000)}m before retrying this batch of ${chunk}`);
+      console.log(`[runBatch] agent blocked/interrupted (attempt ${retries}/${MAX_RETRIES_PER_BATCH}) — waiting ${Math.round(waitMs / 60000)}m before retrying this batch of ${chunk}`);
       await sleep(waitMs);
       continue; // retry the same chunk — don't decrement remaining
     }

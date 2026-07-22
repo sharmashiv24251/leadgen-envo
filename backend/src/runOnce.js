@@ -44,7 +44,12 @@ function buildAgentSpawn(clientSlug, safeCount) {
       `this run (count=${safeCount}).`;
     return {
       command: resolveAgyCommand(),
-      args: ["-p", prompt, "--dangerously-skip-permissions"],
+      // --print-timeout defaults to 5m0s (confirmed via `agy --help`) -- with no override,
+      // agy self-terminates well before RUN_TIMEOUT_MS (25m below) ever gets a chance to matter,
+      // which is exactly what killed the first real 3-prospect run partway through prospect 3.
+      // 20m leaves a 5m buffer under RUN_TIMEOUT_MS so agy's own timeout fires (with a real
+      // stderr message) before Node's hard SIGKILL would.
+      args: ["-p", prompt, "--dangerously-skip-permissions", "--print-timeout", "20m"],
       attachLogger: (child, opts) => attachPlainLogger(child, opts),
     };
   }

@@ -249,54 +249,94 @@ out even though the agent runtime and send provider both differ from Workenvo's.
   Versions: `wk-check-contacted` v3→v4, `wk-find-email` v5→v6, `wk-insert-draft` v6→v7,
   `wk-notify` v3→v4.
 - **`clients` row seeded**: slug `thehrcompany`, `send_provider='outlook'`, plus a `config` row
-  with `daily_quota=10`, `auto_send=false`, and **`paused=true`** as a deliberate safety default
-  — nothing can actually run for this client until it's turned off, since the Apollo key and
-  Outlook sending aren't wired up yet. No new `total_quota` concept was needed: the existing
-  `MAX_PROSPECTS_PER_RUN=3` + `runBatch()` chunking in `runOnce.js` already does "3 at a time,
-  keep going," so "10 emails/day" is just this `daily_quota` value — `runBatch(10)` naturally
-  chunks into 3+3+3+1.
-- **New storage bucket `thehrcompany-skill`** created (private, mirrors `workenvo-skill`).
-- **New skill files drafted** at repo root in `The HR Company/` (deliberately separate from
-  `backend/`, which holds Workenvo's files directly, for per-client bookkeeping) — `icp.md`,
-  `product.md`, `voice.md`, `SKILL.md`. Sender persona is Bianca. Adapted from Workenvo's files
-  (same four-move email structure, same hard rules about VERIFIED-only facts) but: subject-line
-  guidance deliberately simplified (Workenvo's rigid 2-4-word formula and its "wrasslin"
-  example were called out as the one weak part, not reused); "hook material" reworked because
-  most of this ICP's real triggers (a bad disciplinary, a WRC case) are private and
-  unsearchable, so the file points at public correlates instead (HR/admin job postings, new
-  sites, public WRC records, CRO incorporation dates for the secondary ICP); the privacy line
-  is replaced with a "trust line" defusing a different objection ("I'll pay for a document
-  portal and still be alone when something happens," not a data-privacy concern); pricing and
-  client-logo social proof are explicitly marked unknown in `product.md` rather than invented.
-  **Not yet uploaded to the `thehrcompany-skill` bucket.**
-- **Apollo per-client key routing — done (2026-07-22).** `wk-find-email` now maps `client_slug`
-  to the right Apollo secret (`workenvo`→`APOLLO_API_KEY`, `thehrcompany`→
-  `APOLLO_API_KEY_THEHRCOMPANY`), fails loudly on an unrecognized slug, and is live-verified
-  (a real lookup against Bianca's own Apollo account returned a clean no-match, not an auth
-  error).
-- **`agy` installed and authenticated directly on `outreach-leadgen`, 2026-07-22** — confirmed
-  working with a clean `hi` response, no errors. Landed on `info@envo.club (Antigravity
-  Business)` via Google OAuth — a Workspace-level plan whose actual billing terms are
-  unverified, **not** the dedicated AI-Studio API key + Leadgen GCP project billing that was
-  separately confirmed safe (spend cap set; real `Cost − Savings = €0.00` evidence on that
-  billing account). Two different, both-currently-untroubled mechanisms — don't assume one's
-  safety extends to the other without checking. The authenticated OS user is `info`
-  (`info@outreach-leadgen`), which the new `thehrcompany-scheduler` systemd service must match
-  exactly (`User=info`) — credentials are cached per-OS-user, not machine-wide. Getting here hit
-  a real CLI bug along the way (a PKCE `Code Challenge must be base64 encoded` error on the
-  "Use a Google Cloud project" login path, worked around by retrying) and confirmed this CLI
-  version's login menu has no plain API-key-paste option at all, only OAuth or GCP-project
-  choices — contrary to the original plan.
-- **Still not done:** `runOnce.js`/the scheduler still only knows how to spawn
-  `claude`; nothing yet branches per client to spawn `agy` instead, and `agy`'s output has no
-  confirmed structured/JSON logging mode (`--help` shows no such flag; only plain final-text
-  output confirmed), so `streamLogger.js`'s stream-json parser can't be reused as-is for this
-  client's runs. The frontend's `thehrcompany` login is still the original 100%-mock account —
-  plan is to repoint it at real Supabase data scoped to this client's `client_id` (same shape as
-  `lib/workenvoData.ts`) and drop the mock wiring entirely, not yet done. Cross-client run
-  scheduling needs no code changes (`runOnce.js`'s run-in-progress check is already scoped per
-  `client_id`, confirmed by reading it) — Shivansh plans to stagger run times informally, no
-  hard mutual-exclusion rule required.
+  with `daily_quota=10` and `auto_send=false`. No new `total_quota` concept was needed: the
+  existing `MAX_PROSPECTS_PER_RUN=3` + `runBatch()` chunking in `runOnce.js` already does "3 at
+  a time, keep going," so "10 emails/day" is just this `daily_quota` value.
+- **New storage bucket `thehrcompany-skill`** created (private, mirrors `workenvo-skill`), and
+  all four skill files (`SKILL.md`, `product.md`, `icp.md`, `voice.md`) are uploaded and kept in
+  sync with the local `The HR Company/` copies (re-uploaded with `x-upsert: true` whenever those
+  local files change).
+- **New skill files** at repo root in `The HR Company/` (deliberately separate from `backend/`,
+  which holds Workenvo's files directly, for per-client bookkeeping). Sender persona is Bianca.
+  Adapted from Workenvo's files (same four-move email structure, same hard rules about
+  VERIFIED-only facts) but: subject-line guidance deliberately simplified (Workenvo's rigid
+  2-4-word formula and its "wrasslin" example were called out as the one weak part, not reused);
+  "hook material" reworked because most of this ICP's real triggers (a bad disciplinary, a WRC
+  case) are private and unsearchable, so the file points at public correlates instead (HR/admin
+  job postings, new sites, public WRC records, CRO incorporation dates for the secondary ICP);
+  the privacy line is replaced with a "trust line" defusing a different objection ("I'll pay for
+  a document portal and still be alone when something happens," not a data-privacy concern);
+  pricing and client-logo social proof are explicitly marked unknown in `product.md` rather than
+  invented. `SKILL.md` deliberately has **no implementation-status/changelog content in it** —
+  a status note was added there during the build, then removed once it was noticed that this
+  file gets re-read (and billed as input tokens) on every single real run; that kind of history
+  belongs here or in `The HR Company/Accommodate the HR company.md`, never in a file the agent
+  actually consumes.
+- **Apollo per-client key routing — done.** `wk-find-email` maps `client_slug` to the right
+  Apollo secret (`workenvo`→`APOLLO_API_KEY`, `thehrcompany`→`APOLLO_API_KEY_THEHRCOMPANY`),
+  fails loudly on an unrecognized slug, live-verified against Bianca's own Apollo account.
+- **`agy` installed and authenticated directly on `outreach-leadgen`** as the `info` OS user
+  (same user `workenvo-scheduler` already runs as — confirmed via `systemctl show
+  workenvo-scheduler -p User`, no mismatch). Landed on `info@envo.club (Antigravity Business)`
+  via Google OAuth, not the dedicated AI-Studio API key + Leadgen GCP project billing that was
+  separately confirmed safe (spend cap set; real `Cost − Savings = €0.00` evidence). Two
+  different, both-currently-untroubled billing mechanisms — don't assume one's safety extends
+  to the other without checking. This CLI version's login menu offers only OAuth or
+  "Use a Google Cloud project" (which routes through Vertex AI, a separate product from AI
+  Studio's Gemini API) — no plain API-key-paste prompt ever appeared, contrary to the original
+  plan; a PKCE bug (`Code Challenge must be base64 encoded`) on the GCP-project path was worked
+  around by simply retrying.
+- **GCP-side scheduler — built, deployed, and live-verified with a real end-to-end run.**
+  `runOnce.js` branches per `client_slug`: `thehrcompany` spawns `agy` with a literal
+  instruction prompt (no slash command, no `--output-format` flag) instead of `claude`, and
+  each client gets its own `workspace/<slug>/` directory so the two clients' schedulers (which
+  can legitimately overlap in time — the run-in-progress check is scoped per `client_id`) can't
+  clobber each other's files. `downloadSkillFiles.js` is parameterized per client
+  (bucket + placement). `streamLogger.js` has a plain passthrough logger for `agy`'s
+  unstructured stdout (`attachPlainLogger`) alongside the original NDJSON parser for Claude.
+  `scheduler.js` was redesigned mid-build: an initial `CRON_SCHEDULE` env-var idea (fixed
+  `{time, count}` firings baked into `.env`) was scrapped once Shivansh clarified he didn't want
+  either the schedule or the quota requiring a redeploy to change — the actual design polls
+  every 30s and reads `config.daily_run_time` (e.g. `"20:00"`) and `config.daily_quota` fresh
+  from Supabase each tick, both changeable with a plain SQL `UPDATE`. "Already fired today" is
+  checked against real `run_requests` rows, not an in-memory flag, so a restart can't cause a
+  double-fire or a missed day — and if the process is down exactly at the trigger time, it
+  fires as soon as it's back up rather than silently skipping that day. Workenvo has no
+  `config.daily_run_time` set and keeps its original hardcoded `07:00` default unchanged.
+  `thehrcompany-scheduler` systemd service created (`User=info`) and confirmed `active
+  (running)` with its own log line proving the new scheduler code actually loaded.
+- **Two real bugs hit and fixed getting the first live run working:** (1) `agy` installs
+  per-user at `~/.local/bin/agy`, added to `PATH` only by `.bashrc`/`.profile` (sourced for
+  interactive SSH sessions, not for a systemd service, which starts with a minimal default
+  `PATH`) — `claude` never hit this since it's installed globally via `sudo npm install -g`.
+  First real trigger threw `spawn agy ENOENT`. Fixed by resolving `agy`'s absolute path directly
+  in code (`path.join(os.homedir(), ".local", "bin", "agy")`) instead of depending on `PATH` at
+  all — verified the exact path against `which agy` on the VM before trusting it. (2) That same
+  failure exposed a **pre-existing** bug (not introduced by this work, just never triggered
+  before): a `spawn()`-level error (as opposed to a normal non-zero exit) was handled via
+  `reject()`, which threw straight past all the "mark this run failed" bookkeeping in
+  `runOnce.js` and left the `runs` row stuck at `status='running'` forever — the exact same
+  *class* of bug as the stale `run_requests` row found and fixed earlier this session, just a
+  different table. Fixed by resolving with a captured `spawnError` instead of rejecting, so the
+  failure path always runs; the one stuck row this created was cleaned up (`status='blocked_agent'`).
+  Also split `runs.status` into `blocked_claude` (Claude Code) vs. **`blocked_agent`** (any other
+  agent) so a non-Claude failure doesn't show a misleading Claude-specific status — `runBatch`'s
+  retry check was updated to catch both, since fixing only the label would have silently treated
+  a failed `agy` batch as if it had completed.
+- **`wk-send-email` hardened against a real gap**: `auto_send=false` only stops a *new* draft
+  from being auto-approved at insert time — it does nothing to stop a human manually clicking
+  "Send Now" on an *existing* draft, which flips the same trigger regardless of client. Before
+  this fix, an HR Company draft sent this way would fall through missing `sender_email`/
+  `sender_options` config to a literal `"me"` placeholder and attempt a real OAuth call using
+  **Workenvo's own Gmail service account** with garbage sender info — failing today only by
+  accident (an invalid `sub` isn't a real mailbox), not by design. Fixed: `wk-send-email` now
+  checks `clients.send_provider` first and refuses immediately (fail-loud, clear error) for any
+  client whose provider isn't `"gmail"`, before any Gmail-specific logic runs.
+- **`config.paused` flipped to `false`** and the first real unattended run triggered — confirmed
+  actually spawning `agy` successfully (post-fix) and executing, not just enqueuing.
+- **Still not done:** the frontend's `thehrcompany` login is still the original 100%-mock
+  account — plan is to repoint it at real Supabase data scoped to this client's `client_id`
+  (same shape as `lib/workenvoData.ts`) and drop the mock wiring entirely.
 
 ## Not built yet / explicitly deferred
 - CI/CD is manual by choice (redeploy = SSH + `git pull` + restart, not on every push).

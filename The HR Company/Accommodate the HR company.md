@@ -61,8 +61,9 @@ current-state context for this effort — read this and nothing else needs re-ex
 ## Supabase changes — done
 
 - `clients` row: slug `thehrcompany`, name "The HR Company", `send_provider='outlook'`.
-- `config` rows for that client: `daily_quota=10`, `auto_send=false`, **`paused=true`**
-  (deliberate safety gate, still in place — see "What's left").
+- `config` rows for that client: `daily_quota=10`, `auto_send=false`, and **`daily_run_time`**
+  (`"20:00"`, Europe/Dublin — see scheduler section below). `paused` was flipped to `false`
+  once the full pipeline was built and verified end-to-end — see "What's left."
 - Storage bucket **`thehrcompany-skill`** created (private, mirrors `workenvo-skill`), and all
   four skill files (`SKILL.md`, `product.md`, `icp.md`, `voice.md`) are uploaded to it.
 - **Edge Functions are now multi-tenant-aware.** `wk-check-contacted`, `wk-find-email`,
@@ -117,9 +118,10 @@ ICP doc). Sender persona throughout: **Bianca**.
   research via a delegated subagent → draft intro + follow-up → write to Supabase → report run).
   Delegation language rewritten tool-agnostic ("spawn a dedicated subagent") instead of naming
   Claude Code's `Task` tool. Every Edge Function call body already includes
-  `"client_slug":"thehrcompany"`. Internal status note in the file itself confirms both Edge
-  Function fixes are done and live-verified, and that `config.paused=true` is the one remaining
-  deliberate gate.
+  `"client_slug":"thehrcompany"`. A status/changelog note was added to the top of this file
+  during the build, then deliberately removed — it gets re-read (and billed as input tokens) on
+  every real run for information the agent can't act on. That kind of history lives here and in
+  `CLAUDE.md` instead; `SKILL.md` itself stays pure task instructions, same shape as Workenvo's.
 
 ## Outlook / Microsoft 365 sending — researched, not built, not blocking drafting
 
@@ -158,95 +160,41 @@ Two possible architectures, not yet chosen:
   Graph `sendMail`) — confirmed from `wk-send-email`'s real deployed source that sending is
   100% Supabase + provider API, zero AI/VM involvement, so the same pattern carries over cleanly.
 
-## What's left (in dependency order)
+## What's left
 
-1. ~~Create a dedicated Gemini API key, authenticate `agy` on the VM~~ **DONE, 2026-07-22** —
-   `agy` (v1.1.5) is installed and authenticated directly on `outreach-leadgen` (confirmed via a
-   clean, working `hi` prompt with no errors). Two things worth knowing about how this actually
-   landed, not just that it "worked":
-   - **Auth landed on `info@envo.club (Antigravity Business)` via Google OAuth, not the
-     dedicated AI-Studio API key + Leadgen GCP project billing that was carefully de-risked**
-     (spend cap set, credit-coverage verified via real `Cost − Savings = €0.00` evidence on the
-     Leadgen billing account). "Antigravity Business" is a Workspace/org-level plan tied to the
-     `envo.club` domain — its actual billing/usage terms are **unverified**, a genuinely
-     different mechanism than everything checked earlier in this doc. Don't assume it's covered
-     by the same credit just because the AI-Studio path was confirmed safe.
-   - **The OS user is `info`, and this is confirmed to match everything else** — verified
-     `workenvo-scheduler`'s systemd unit is also `User=info` (`systemctl show workenvo-scheduler
-     -p User`), and GCP's console SSH button consistently logs in as `info` every time (tied to
-     OS Login, not a one-off). No mismatch risk: `thehrcompany-scheduler` (item 5 below) just
-     needs `User=info`, identical to `workenvo-scheduler`'s existing unit, and it inherits the
-     already-authenticated Antigravity credential automatically.
-   - Getting here took three real dead ends worth remembering if this ever needs redoing: (a)
-     the "Use a Google Cloud project" login option hit a genuine CLI bug (`Code Challenge must
-     be base64 encoded`, a malformed PKCE parameter — retrying the flow from scratch worked
-     around it once, cause not confirmed); (b) that same option, when it did get further, routed
-     through Vertex AI (`aiplatform.googleapis.com`, a separate product from the AI Studio
-     Gemini API billing that was actually verified) requiring the Agent Platform API to be
-     enabled with its own unverified-at-the-time billing profile (later found to also net to
-     €0.00 against the same credits — but that was discovered, not assumed); (c) no plain
-     "paste an API key" text prompt ever actually appeared in this CLI version's login menu,
-     despite that being the original plan — only OAuth or GCP-project options.
-   - Still worth doing at some point, not blocking: confirm persistence with a second, separate
-     SSH session (same verification method used on the Mac) rather than trusting one working
-     prompt alone.
-2. ~~Branch `runOnce.js`~~ **DONE, 2026-07-22** — `runOnce.js` now branches per `client_slug`:
-   `thehrcompany` spawns `agy -p "<literal instruction to read SKILL.md and draft N
-   prospects>" --dangerously-skip-permissions` (no slash command, no `--output-format` flag),
-   everything else keeps the original `claude -p "/start-outreach-workenvo N" ...` spawn. Also
-   fixed a real bug this change would otherwise have introduced: each client now gets its own
-   `workspace/<slug>` directory (`workspaceDirFor()`), since workenvo and thehrcompany run as
-   separate systemd services that can legitimately overlap in time — sharing one workspace dir
-   would have meant two concurrently-running agents clobbering each other's skill files/cwd.
-3. ~~Parameterize `downloadSkillFiles.js`~~ **DONE, 2026-07-22** — `CLIENT_SKILL_CONFIG` now maps
-   `client_slug` → bucket + file placement; `thehrcompany` pulls from `thehrcompany-skill` with
-   a flat layout (`SKILL.md` → `SKILL.md`, no `.claude/commands/`), `workenvo` unchanged. Fails
-   loudly on an unrecognized slug.
-4. ~~Build a plain-text logger for `agy`'s output~~ **DONE, 2026-07-22** — `streamLogger.js` now
-   exports `attachPlainLogger`, a straight passthrough of `agy`'s unstructured stdout/stderr;
-   `runOnce.js` picks it vs. the existing NDJSON `attachLiveLogger` based on client.
-5. **Create a second systemd service** (`thehrcompany-scheduler`) — code side done, VM side not.
-   Superseded an earlier design (a `CRON_SCHEDULE` env var of fixed `{time, count}` firings) once
-   Shivansh clarified he didn't want fixed schedule/quota values baked into `.env` requiring a
-   redeploy to change either one. Current design: `scheduler.js` polls every 30s and checks
-   `config.daily_run_time` (e.g. `"20:00"`) and `config.daily_quota` fresh from Supabase each
-   tick — both changeable with a plain `UPDATE`, no `.env` edit, no redeploy, ever.
-   `config.daily_run_time` is unset for Workenvo, which keeps its original hardcoded `07:00`
-   default; it's set to `"20:00"` for `thehrcompany` (seeded 2026-07-22, matches what Shivansh
-   asked for — change it anytime with `update config set value='"21:30"' where client_id=...
-   and key='daily_run_time'`). `runBatch()` already chunks whatever quota comes back into groups
-   of 3 regardless of the total (10 → 3+3+3+1, 20 → 3+3+3+3+3+3+2) — that part never needed to
-   change. "Already fired today" is checked against `run_requests` in the DB, not an in-memory
-   flag, so a mid-day service restart can't cause a double-fire or a missed day (also more
-   robust than the old cron-library approach: if the process happens to be down exactly at the
-   trigger time, it fires as soon as it's back up, rather than silently missing that day
-   entirely). Full systemd unit + `.env` template in `backend/DEPLOY.md` ("Second client:
-   thehrcompany-scheduler"). Still needs Shivansh to actually run it on the VM: create
-   `thehrcompany.env` (now much shorter — no schedule of any kind in it), create and start the
-   systemd unit (no SSH/gcloud access from the assistant's environment). `agy`'s one-time
-   interactive auth as the `info` OS user is already done (see item 1).
-   - **Two real bugs caught in review and fixed, 2026-07-22**: (a) `runOnce.js` hardcoded
-     `runs.status = 'blocked_claude'` on any agent failure regardless of which agent actually
-     ran — an `agy` failure would've shown a misleading Claude-specific status in the dashboard;
-     split into `blocked_claude` (Claude Code) vs `blocked_agent` (everything else), and updated
-     `runBatch`'s retry check to catch both — missing that second part would have silently
-     treated a failed `agy` run as if it had completed, since it would've fallen through every
-     other status check. (b) a status note in `SKILL.md` claiming `agy`'s VM auth was "not yet
-     built" was stale — it had already been verified working earlier the same day.
-6. **Flip `config.paused` to `false`** for `thehrcompany` — the final gate, once everything
-   above is built and someone is ready to watch the first real unattended run complete.
-7. **Frontend**: replace the 100%-mock `thehrcompany`/`thehrcompany` login with real Supabase
+**The entire pipeline is built, deployed, and live — this section is now just the genuinely
+open items, not a build checklist.**
+
+Everything that used to be here (Gemini API key + `agy` VM auth, `runOnce.js`'s per-client
+branch + per-client `workspace/<slug>` dirs, `downloadSkillFiles.js` parameterization,
+`streamLogger.js`'s plain logger, the config-driven scheduler replacing an earlier
+`CRON_SCHEDULE`-in-`.env` idea, the `thehrcompany-scheduler` systemd service, flipping
+`config.paused` to `false`) is done and live-verified — see `CLAUDE.md`'s "Second client
+onboarding" section for the full detail on each, including the real bugs found and fixed along
+the way (the `agy` PATH/`ENOENT` issue, the spawn-error-leaves-`runs`-stuck bug, the
+`blocked_claude`/`blocked_agent` split, and the `wk-send-email` `send_provider` guard).
+
+Still genuinely open:
+
+1. **Frontend**: replace the 100%-mock `thehrcompany`/`thehrcompany` login with real Supabase
    data scoped to the `thehrcompany` `client_id` — a new `lib/*Data.ts` module mirroring
    `lib/workenvoData.ts`'s exact shape, wired into the existing account-switch pattern in
    `lib/auth.ts`. Same hardcoded email+password login pattern as the other two accounts. Not
-   started.
-8. **Outlook/Microsoft 365 sending** — see architecture section above. Blocked on: Shivansh
+   started — until this exists, the only way to see drafts landing is querying Supabase
+   directly or Studio.
+2. **Outlook/Microsoft 365 sending** — see architecture section above. Blocked on: Shivansh
    deciding Path A vs. B (leaning Path A), then actually running the consent flow with Bianca.
-   Not urgent — does not block lead accumulation at all.
-9. **VM resource check** — low priority, not a real blocker (the run-in-progress mutual
+   Not urgent — does not block lead accumulation at all, and `wk-send-email` now explicitly
+   refuses to attempt a send for any client whose `send_provider` isn't `"gmail"`, so there's no
+   accidental-send risk in the meantime either.
+3. **VM resource check** — low priority, not a real blocker (the run-in-progress mutual
    exclusion in `runOnce.js` is already scoped per `client_id`, so the two clients' runs
    literally cannot collide at the DB level even if they overlap). Worth grabbing real
-   `free -h`/`ps aux` numbers once both schedulers have actually run side by side at least once.
+   `free -h`/`ps aux` numbers now that both schedulers have actually run side by side.
+4. **Watch the first real triggered run through to completion** — `config.paused` was flipped
+   and a run was confirmed to actually start (post-PATH-fix, `agy` spawns successfully) — still
+   worth confirming end-to-end that it produces a real, correctly-attributed draft the same way
+   the earlier Workenvo-via-Antigravity capability test did.
 
 ## Reference
 
@@ -258,7 +206,9 @@ Two possible architectures, not yet chosen:
   `select id from clients where slug='thehrcompany'`.
 - Storage bucket: `thehrcompany-skill` (private).
 - GCP: VM `outreach-leadgen`, project `Leadgen`, region `europe-west2`, `e2-small`.
-- Antigravity CLI location (local Mac, for reference/testing): `/Users/shivansh/.local/bin/agy`.
+- Antigravity CLI location: `/Users/shivansh/.local/bin/agy` (local Mac, for reference/testing),
+  `/home/info/.local/bin/agy` (the actual VM — confirmed via `which agy`, and this is the exact
+  path `runOnce.js` resolves via `os.homedir()` rather than relying on `PATH`).
 
 ## Explicitly ruled out (don't reintroduce)
 

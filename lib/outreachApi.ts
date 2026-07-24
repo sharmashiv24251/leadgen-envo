@@ -1,81 +1,77 @@
 "use client";
 
 // Thin dispatcher so components (EmailDetail, AutoSendToggle, RunTrigger) don't need to
-// know which account is active — workenvo keeps hitting real Supabase exactly as before,
-// thehrcompany gets a same-shaped in-memory simulation (lib/mockData.ts). Every export here
-// mirrors workenvoData.ts's signatures 1:1.
+// know which account is active — both accounts hit real Supabase now, just scoped to a
+// different client_id (lib/workenvoData.ts vs lib/thehrcompanyData.ts). Every export here
+// mirrors both modules' signatures 1:1, which are themselves identical to each other.
 import { getAccount } from "@/lib/auth";
 import type { FunnelStage, LostReason } from "@/lib/funnel";
-import * as mock from "@/lib/mockData";
+import * as thehrcompany from "@/lib/thehrcompanyData";
 import * as workenvo from "@/lib/workenvoData";
 import type { ProspectStatus } from "@/lib/data";
 
 export type { ProspectPage, RunRequest, RunRequestStatus, SenderOption } from "@/lib/workenvoData";
 export type { FunnelStage, LostReason } from "@/lib/funnel";
 
-function isWorkenvo(): boolean {
-  return getAccount() === "workenvo";
+function backend() {
+  return getAccount() === "workenvo" ? workenvo : thehrcompany;
 }
 
 export async function fetchThreadMessages(contactId: string) {
-  return isWorkenvo() ? workenvo.fetchThreadMessages(contactId) : mock.fetchThreadMessages(contactId);
+  return backend().fetchThreadMessages(contactId);
 }
 
 export async function updateMessageDraft(
   messageId: string,
   updates: { subject: string; body: string }
 ): Promise<void> {
-  return isWorkenvo()
-    ? workenvo.updateMessageDraft(messageId, updates)
-    : mock.updateMessageDraft(messageId, updates);
+  return backend().updateMessageDraft(messageId, updates);
 }
 
 export async function approveMessageDraft(messageId: string, sendFrom?: string): Promise<void> {
-  return isWorkenvo()
-    ? workenvo.approveMessageDraft(messageId, sendFrom)
-    : mock.approveMessageDraft(messageId, sendFrom);
+  return backend().approveMessageDraft(messageId, sendFrom);
 }
 
 export async function fetchMessageStatus(messageId: string): Promise<string | null> {
-  return isWorkenvo() ? workenvo.fetchMessageStatus(messageId) : mock.fetchMessageStatus(messageId);
+  return backend().fetchMessageStatus(messageId);
 }
 
 export async function sendCustomReply(contactId: string, body: string) {
-  return isWorkenvo() ? workenvo.sendCustomReply(contactId, body) : mock.sendCustomReply(contactId, body);
+  return backend().sendCustomReply(contactId, body);
 }
 
 export async function revealPhone(
   contactId: string
 ): Promise<{ phone: string | null; phoneStatus: string }> {
-  return isWorkenvo() ? workenvo.revealPhone(contactId) : mock.revealPhone(contactId);
+  return backend().revealPhone(contactId);
 }
 
 export async function fetchSenderOptions() {
-  return isWorkenvo() ? workenvo.fetchSenderOptions() : mock.fetchSenderOptions();
+  return backend().fetchSenderOptions();
 }
 
 export async function fetchAutoSend(): Promise<boolean> {
-  return isWorkenvo() ? workenvo.fetchAutoSend() : mock.fetchAutoSend();
+  return backend().fetchAutoSend();
 }
 
 export async function setAutoSend(value: boolean): Promise<void> {
-  return isWorkenvo() ? workenvo.setAutoSend(value) : mock.setAutoSend(value);
+  return backend().setAutoSend(value);
 }
 
 export async function fetchDefaultSender(): Promise<string> {
-  return isWorkenvo() ? workenvo.fetchDefaultSender() : mock.fetchDefaultSender();
+  return backend().fetchDefaultSender();
 }
 
 export async function setDefaultSender(email: string): Promise<void> {
-  return isWorkenvo() ? workenvo.setDefaultSender(email) : mock.setDefaultSender(email);
+  return backend().setDefaultSender(email);
 }
 
 export async function enqueueRun(count: number): Promise<void> {
-  return isWorkenvo() ? workenvo.enqueueRun(count) : mock.enqueueRun(count);
+  return backend().enqueueRun(count);
 }
 
 export async function fetchLatestRunRequest() {
-  return isWorkenvo() ? workenvo.fetchLatestRunRequest() : mock.fetchLatestRunRequest();
+  return backend().fetchLatestRunRequest();
 }
 
 export async function setContactStage(
@@ -83,27 +79,23 @@ export async function setContactStage(
   stage: FunnelStage | null,
   lostReason: LostReason | null
 ): Promise<void> {
-  return isWorkenvo()
-    ? workenvo.setContactStage(contactId, stage, lostReason)
-    : mock.setContactStage(contactId, stage, lostReason);
+  return backend().setContactStage(contactId, stage, lostReason);
 }
 
 export async function fetchContactNotes(contactId: string) {
-  return isWorkenvo() ? workenvo.fetchContactNotes(contactId) : mock.fetchContactNotes(contactId);
+  return backend().fetchContactNotes(contactId);
 }
 
 export async function addContactNote(contactId: string, author: string, text: string): Promise<void> {
-  return isWorkenvo()
-    ? workenvo.addContactNote(contactId, author, text)
-    : mock.addContactNote(contactId, author, text);
+  return backend().addContactNote(contactId, author, text);
 }
 
 export async function updateContactNote(noteId: string, text: string): Promise<void> {
-  return isWorkenvo() ? workenvo.updateContactNote(noteId, text) : mock.updateContactNote(noteId, text);
+  return backend().updateContactNote(noteId, text);
 }
 
 export async function deleteContactNote(noteId: string): Promise<void> {
-  return isWorkenvo() ? workenvo.deleteContactNote(noteId) : mock.deleteContactNote(noteId);
+  return backend().deleteContactNote(noteId);
 }
 
 export async function fetchProspectsPage(args: {
@@ -111,28 +103,28 @@ export async function fetchProspectsPage(args: {
   status: ProspectStatus | null;
   stage: FunnelStage | null;
 }) {
-  return isWorkenvo() ? workenvo.fetchProspectsPage(args) : mock.fetchProspectsPage(args);
+  return backend().fetchProspectsPage(args);
 }
 
 export async function fetchLatestProspectId(args: {
   status: ProspectStatus | null;
   stage: FunnelStage | null;
 }) {
-  return isWorkenvo() ? workenvo.fetchLatestProspectId(args) : mock.fetchLatestProspectId(args);
+  return backend().fetchLatestProspectId(args);
 }
 
 export async function fetchProspectById(contactId: string) {
-  return isWorkenvo() ? workenvo.fetchProspectById(contactId) : mock.fetchProspectById(contactId);
+  return backend().fetchProspectById(contactId);
 }
 
 export async function fetchAllProspectsLean() {
-  return isWorkenvo() ? workenvo.fetchAllProspectsLean() : mock.fetchAllProspectsLean();
+  return backend().fetchAllProspectsLean();
 }
 
 export async function fetchDashboardStats() {
-  return isWorkenvo() ? workenvo.fetchDashboardStats() : mock.fetchDashboardStats();
+  return backend().fetchDashboardStats();
 }
 
 export async function fetchRecentActivity() {
-  return isWorkenvo() ? workenvo.fetchRecentActivity() : mock.fetchRecentActivity();
+  return backend().fetchRecentActivity();
 }

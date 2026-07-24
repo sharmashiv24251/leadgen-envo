@@ -1,5 +1,11 @@
 # Accommodating The HR Company — full context
 
+**Final status, 2026-07-22: production-ready, live-verified end to end.** Discovery, research,
+drafting, the real dashboard, and phone reveal have all produced genuine results against
+production data, using this client's own credentials throughout — nothing borrowed from
+Workenvo anywhere this was checked. Only Outlook access and a low-priority VM resource check
+remain, neither blocking lead accumulation. See "What's left" for the exhaustive detail.
+
 Second real client for this system, piloting alongside Workenvo. This file is the complete,
 current-state context for this effort — read this and nothing else needs re-explaining.
 
@@ -74,12 +80,27 @@ current-state context for this effort — read this and nothing else needs re-ex
   rather than silently defaulting to Workenvo — deliberate, matches this codebase's fail-loud
   philosophy. Current versions: `wk-check-contacted` v4, `wk-find-email` v8, `wk-insert-draft`
   v7, `wk-notify` v4.
-- **Apollo key is per-client.** `wk-find-email` maps `client_slug` → secret name via a small
-  lookup (`workenvo` → `APOLLO_API_KEY`, `thehrcompany` → `APOLLO_API_KEY_THEHRCOMPANY`), fails
-  loudly if the mapped secret is missing or the slug is unrecognized — never silently reuses
-  another client's key/credits. `APOLLO_API_KEY_THEHRCOMPANY` is set (Bianca's own Apollo
-  account) and live-verified (a real lookup returned a clean no-match, not an auth error,
-  confirming the key is valid).
+- **Apollo key is per-client, for every function that touches Apollo.** `wk-find-email` maps
+  `client_slug` → secret name via a small lookup (`workenvo` → `APOLLO_API_KEY`, `thehrcompany`
+  → `APOLLO_API_KEY_THEHRCOMPANY`), fails loudly if the mapped secret is missing or the slug is
+  unrecognized. `APOLLO_API_KEY_THEHRCOMPANY` is set (Bianca's own Apollo account, on a paid
+  plan) and live-verified twice: a clean no-match lookup (no auth error) via `wk-find-email`,
+  and a **real, successfully-revealed phone number** via `wk-reveal-phone` (fixed the same day
+  for the identical gap — was hardcoded to `APOLLO_API_KEY`, meaning phone reveals on HR Company
+  contacts were silently spending Workenvo's credits until this fix). `wk-reveal-phone`'s fix is
+  actually more robust than `wk-find-email`'s: instead of trusting a `client_slug` parameter,
+  it resolves the contact's own `client_id` → `clients.slug` directly, so it can't be spoofed or
+  drift out of sync with the data. Every other Edge Function was audited for the same class of
+  gap: `wk-send-custom-reply` was already correctly scoped (resolves `client_id` from the
+  message row itself); `wk-phone-webhook`/`wk-debug-thread` don't need client routing (no Apollo
+  key on that side). One separate, unrelated gap found and logged, not fixed (not urgent):
+  `wk-poll-replies` (Gmail reply detection) is still Workenvo-only — dormant for The HR Company
+  until Outlook sending exists, but will need the same treatment once it does.
+  **The full async reveal flow (`wk-reveal-phone` → Apollo → webhook → `wk-phone-webhook` →
+  `contacts` → polling UI) is now confirmed working end-to-end for the first time ever** — this
+  was previously unverified even for Workenvo (see `CLAUDE.md`'s CRM section). Resolved much
+  faster than Apollo's own documented "typically several minutes" on this occasion — treat that
+  as one fast anecdotal data point, not a new guaranteed latency.
 - **Unrelated pre-existing bug found and fixed along the way**: the `run_requests_insert` RLS
   policy's `WITH CHECK` compared a row to itself (`existing.client_id = existing.client_id`,
   always true) instead of correlating to the new row's own `client_id`. Combined with a
@@ -169,32 +190,34 @@ Everything that used to be here (Gemini API key + `agy` VM auth, `runOnce.js`'s 
 branch + per-client `workspace/<slug>` dirs, `downloadSkillFiles.js` parameterization,
 `streamLogger.js`'s plain logger, the config-driven scheduler replacing an earlier
 `CRON_SCHEDULE`-in-`.env` idea, the `thehrcompany-scheduler` systemd service, flipping
-`config.paused` to `false`) is done and live-verified — see `CLAUDE.md`'s "Second client
-onboarding" section for the full detail on each, including the real bugs found and fixed along
-the way (the `agy` PATH/`ENOENT` issue, the spawn-error-leaves-`runs`-stuck bug, the
-`blocked_claude`/`blocked_agent` split, and the `wk-send-email` `send_provider` guard).
+`config.paused` to `false`, and the frontend) is done and live-verified — see `CLAUDE.md`'s
+"Second client onboarding" section for the full detail on each, including the real bugs found
+and fixed along the way (the `agy` PATH/`ENOENT` issue, the spawn-error-leaves-`runs`-stuck bug,
+the `blocked_claude`/`blocked_agent` split, the `--print-timeout` default cutting runs off at 5
+minutes, the interrupted-run-counted-as-done bug, and the `wk-send-email` `send_provider`
+guard). Frontend specifics: `lib/thehrcompanyData.ts` mirrors `lib/workenvoData.ts`
+function-for-function against the real `client_id`; `lib/auth.ts`'s `Account` type no longer has
+a `"mock"` value at all, since both accounts are real now; `RunTrigger.tsx`/`AutoSendToggle.tsx`
+needed zero changes, already fully account-agnostic. Verified live in browser: Command Center,
+Outreach Feed + detail, Funnel board, all showing real drafted leads. `lib/mockData.ts` is now
+unused but was left in place rather than deleted.
 
 Still genuinely open:
 
-1. **Frontend**: replace the 100%-mock `thehrcompany`/`thehrcompany` login with real Supabase
-   data scoped to the `thehrcompany` `client_id` — a new `lib/*Data.ts` module mirroring
-   `lib/workenvoData.ts`'s exact shape, wired into the existing account-switch pattern in
-   `lib/auth.ts`. Same hardcoded email+password login pattern as the other two accounts. Not
-   started — until this exists, the only way to see drafts landing is querying Supabase
-   directly or Studio.
-2. **Outlook/Microsoft 365 sending** — see architecture section above. Blocked on: Shivansh
+1. **Outlook/Microsoft 365 sending** — see architecture section above. Blocked on: Shivansh
    deciding Path A vs. B (leaning Path A), then actually running the consent flow with Bianca.
    Not urgent — does not block lead accumulation at all, and `wk-send-email` now explicitly
    refuses to attempt a send for any client whose `send_provider` isn't `"gmail"`, so there's no
    accidental-send risk in the meantime either.
-3. **VM resource check** — low priority, not a real blocker (the run-in-progress mutual
+2. **VM resource check** — low priority, not a real blocker (the run-in-progress mutual
    exclusion in `runOnce.js` is already scoped per `client_id`, so the two clients' runs
    literally cannot collide at the DB level even if they overlap). Worth grabbing real
    `free -h`/`ps aux` numbers now that both schedulers have actually run side by side.
-4. **Watch the first real triggered run through to completion** — `config.paused` was flipped
-   and a run was confirmed to actually start (post-PATH-fix, `agy` spawns successfully) — still
-   worth confirming end-to-end that it produces a real, correctly-attributed draft the same way
-   the earlier Workenvo-via-Antigravity capability test did.
+
+~~Watch the first real triggered run through to completion~~ **DONE** — after the
+`--print-timeout`/interrupted-run bug fixes, real runs are completing correctly: 5 real,
+correctly-attributed prospects confirmed live in the dashboard (Michael Dixon, Tim Murphy, John
+Wallace, Ray Cole, Fergal Meagher), matching quality seen in the earlier capability test.
 
 ## Reference
 

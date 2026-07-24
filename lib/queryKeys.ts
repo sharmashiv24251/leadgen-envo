@@ -3,8 +3,9 @@ import type { Account } from "@/lib/auth";
 // Central query key factory. Every key is a descendant of `<account>.all`, so
 // `invalidateQueries({ queryKey: workenvo.all })` can nuke a whole namespace (e.g. on
 // account switch/logout) while individual leaves (senderOptions, autoSend, ...) can be
-// invalidated on their own. workenvo and mock are separate namespaces so the two accounts'
-// query-cache entries never collide, even if both were ever mounted in the same session.
+// invalidated on their own. workenvo and thehrcompany are separate namespaces so the two
+// accounts' query-cache entries never collide, even if both were ever mounted in the same
+// session.
 export const queryKeys = {
   workenvo: {
     all: ["workenvo"] as const,
@@ -31,30 +32,30 @@ export const queryKeys = {
     contactNotes: (contactId: string) =>
       [...queryKeys.workenvo.all, "contact-notes", contactId] as const,
   },
-  mock: {
-    all: ["mock"] as const,
-    prospectsListPrefix: () => [...queryKeys.mock.all, "prospects-list"] as const,
+  thehrcompany: {
+    all: ["thehrcompany"] as const,
+    prospectsListPrefix: () => [...queryKeys.thehrcompany.all, "prospects-list"] as const,
     prospectsList: (status: string | null, stage: string | null) =>
-      [...queryKeys.mock.prospectsListPrefix(), status ?? "all", stage ?? "all"] as const,
+      [...queryKeys.thehrcompany.prospectsListPrefix(), status ?? "all", stage ?? "all"] as const,
     prospectDetail: (contactId: string) =>
-      [...queryKeys.mock.all, "prospect-detail", contactId] as const,
+      [...queryKeys.thehrcompany.all, "prospect-detail", contactId] as const,
     latestProspectId: (status: string | null, stage: string | null) =>
-      [...queryKeys.mock.all, "latest-prospect-id", status ?? "all", stage ?? "all"] as const,
-    allProspectsLean: () => [...queryKeys.mock.all, "all-prospects-lean"] as const,
-    dashboardStats: () => [...queryKeys.mock.all, "dashboard-stats"] as const,
-    recentActivity: () => [...queryKeys.mock.all, "recent-activity"] as const,
-    senderOptions: () => [...queryKeys.mock.all, "sender-options"] as const,
-    autoSend: () => [...queryKeys.mock.all, "auto-send"] as const,
-    defaultSender: () => [...queryKeys.mock.all, "default-sender"] as const,
+      [...queryKeys.thehrcompany.all, "latest-prospect-id", status ?? "all", stage ?? "all"] as const,
+    allProspectsLean: () => [...queryKeys.thehrcompany.all, "all-prospects-lean"] as const,
+    dashboardStats: () => [...queryKeys.thehrcompany.all, "dashboard-stats"] as const,
+    recentActivity: () => [...queryKeys.thehrcompany.all, "recent-activity"] as const,
+    senderOptions: () => [...queryKeys.thehrcompany.all, "sender-options"] as const,
+    autoSend: () => [...queryKeys.thehrcompany.all, "auto-send"] as const,
+    defaultSender: () => [...queryKeys.thehrcompany.all, "default-sender"] as const,
     threadMessages: (contactId: string) =>
-      [...queryKeys.mock.all, "thread-messages", contactId] as const,
+      [...queryKeys.thehrcompany.all, "thread-messages", contactId] as const,
     messageStatus: (messageId: string) =>
-      [...queryKeys.mock.all, "message-status", messageId] as const,
-    latestRunRequest: () => [...queryKeys.mock.all, "run-request", "latest"] as const,
+      [...queryKeys.thehrcompany.all, "message-status", messageId] as const,
+    latestRunRequest: () => [...queryKeys.thehrcompany.all, "run-request", "latest"] as const,
     contactNotes: (contactId: string) =>
-      [...queryKeys.mock.all, "contact-notes", contactId] as const,
+      [...queryKeys.thehrcompany.all, "contact-notes", contactId] as const,
   },
   forAccount(account: Account) {
-    return account === "workenvo" ? queryKeys.workenvo : queryKeys.mock;
+    return account === "workenvo" ? queryKeys.workenvo : queryKeys.thehrcompany;
   },
 };

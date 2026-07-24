@@ -23,12 +23,12 @@ import { queryKeys } from "@/lib/queryKeys";
 
 // The account check must happen client-side (localStorage) and can't run during SSR/the
 // first client render without risking a hydration mismatch. useLayoutEffect flips this
-// before the browser paints, so — combined with `enabled` below — the mock frame is what
-// briefly exists, never what's actually painted.
+// before the browser paints, so — combined with `enabled` below — this default frame is
+// what briefly exists, never what's actually painted.
 export function useAccountMode(): Account {
-  const [account, setAccount] = useState<Account>("mock");
+  const [account, setAccount] = useState<Account>("thehrcompany");
   useLayoutEffect(() => {
-    setAccount(isAuthenticated() ? getAccount() : "mock");
+    setAccount(isAuthenticated() ? getAccount() : "thehrcompany");
   }, []);
   return account;
 }

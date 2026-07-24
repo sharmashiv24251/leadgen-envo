@@ -195,9 +195,16 @@ just the snapshot.
   polled. **The implementation itself is correct and doesn't need to change** once phone access is
   back on a paid plan — same `wk-reveal-phone` → Apollo → `wk-phone-webhook` → `contacts` →
   polling UI flow should just start working. Temporary diagnostic `console.log`s added during this
-  investigation have been removed. Still genuinely unverified end-to-end: the `verified` path (an
-  actual number arriving via webhook) has never been observed, only `pending`/`not_found`. First
-  real test should happen once Apollo phone credits are restored.
+  investigation have been removed.
+
+  **The `verified` path is now confirmed end-to-end, 2026-07-22** (via The HR Company's own paid
+  Apollo account, on an HR Company contact — the underlying `wk-reveal-phone`/`wk-phone-webhook`
+  code is identical for both clients, so this is the first real confirmation the whole flow
+  works, full stop, not something specific to one client). Resolved much faster than Apollo's own
+  documented *"typically several minutes"* — reported as near-instant on this occasion. Treat
+  that as one anecdotal data point on the fast end of Apollo's own range, not a new guaranteed
+  latency — the UI's "can take a few minutes" framing and the 10-minute stale-pending retry
+  threshold both still stand as the honest expectation.
   **Fourth gap, also fixed:** the `'pending'` UI state had no escape hatch at all -- if Apollo's
   webhook never arrives (missing mobile-phone credits on the plan, delivery failure, anything),
   the button showed "Revealing…" with no way to retry, forever, since it wasn't even rendered as
@@ -214,7 +221,13 @@ just the snapshot.
   advisor caught immediately after `prospect_feed` was first created (fixed with
   `security_invoker = true`).
 
-## Second client onboarding (The HR Company) — started 2026-07-22, in progress
+## Second client onboarding (The HR Company) — started 2026-07-22, production-ready same day
+
+**Status: the entire pipeline is real, deployed, and live-verified end to end** — discovery,
+research, drafting, the dashboard, and phone reveal have all produced genuine results against
+production data using this client's own credentials throughout (not shared/borrowed from
+Workenvo anywhere). The only two things intentionally not done are listed at the very end of
+this section, and neither blocks lead accumulation.
 
 Piloting the whole system with a second real client for the first time: **The HR Company**
 (Ireland-based HR outsourcing, contact Bianca, `bianca@thehrcompany.ie`). Explicit scope
@@ -334,9 +347,66 @@ out even though the agent runtime and send provider both differ from Workenvo's.
   client whose provider isn't `"gmail"`, before any Gmail-specific logic runs.
 - **`config.paused` flipped to `false`** and the first real unattended run triggered — confirmed
   actually spawning `agy` successfully (post-fix) and executing, not just enqueuing.
-- **Still not done:** the frontend's `thehrcompany` login is still the original 100%-mock
-  account — plan is to repoint it at real Supabase data scoped to this client's `client_id`
-  (same shape as `lib/workenvoData.ts`) and drop the mock wiring entirely.
+- **Two more real bugs hit and fixed during the first live runs**: (3) `agy -p` has its own
+  internal execution deadline (`--print-timeout`, confirmed default `5m0s` via `agy --help`)
+  completely separate from `runOnce.js`'s own 25-minute Node-side hard-kill timeout
+  (`RUN_TIMEOUT_MS`) — with no override, `agy` was self-terminating at the 5-minute mark on a
+  real 3-prospect run, well before the 25-minute Node timeout was ever relevant. Fixed by adding
+  `--print-timeout 20m` to the spawn args (verified against Gemini's own diagnosis, which was
+  itself cross-checked against the real file content, not taken on faith). (4) A restart landing
+  mid-retry killed a run via `SIGTERM`, which correctly marked that `runs` row `'failed'` — but
+  `runOnce()` returns a plain `"failed"` status for an interrupted run, and `runBatch()` only had
+  special handling for `"blocked_claude"`/`"blocked_agent"`, so `"failed"` fell through to the
+  success path (`remaining -= chunk`), silently marking a `run_requests` row `'done'` with **zero
+  contacts actually created**. Fixed by folding `"failed"` into the same retry branch as the
+  blocked statuses; the one falsely-`'done'` row this produced was corrected.
+- **Frontend — done and live-verified in browser, 2026-07-22.** New `lib/thehrcompanyData.ts`
+  mirrors `lib/workenvoData.ts` function-for-function, scoped to the real `thehrcompany`
+  `client_id` (reuses the same Supabase client instance as `workenvoData.ts` rather than
+  creating a second one, which was producing a "Multiple GoTrueClient instances" warning).
+  `lib/auth.ts`'s `Account` type dropped `"mock"` entirely — both accounts are real now.
+  `RunTrigger.tsx` and `AutoSendToggle.tsx` needed zero changes — already fully generic with no
+  account-specific gating. Verified in browser: Command Center (real 10/day quota, 5 real leads,
+  90% ICP health), Outreach Feed + prospect detail (real drafted content), Funnel board (all 5
+  correctly bucketed). `lib/mockData.ts` is now unused but left in place, not deleted.
+- **`wk-reveal-phone` also fixed for per-client Apollo keys, 2026-07-22.** Same gap as
+  `wk-find-email` had — hardcoded to the single global `APOLLO_API_KEY`, so a phone reveal on
+  an HR Company contact was silently spending Workenvo's Apollo credits. Fixed with a cleaner
+  mechanism than `wk-find-email`'s: rather than trusting a `client_slug` the caller passes, it
+  now looks up the contact's own `client_id` → `clients.slug` and resolves the Apollo secret
+  from that — can't be spoofed or drift out of sync, and needs no extra parameter from the
+  frontend at all. Audited every other Edge Function for the same class of gap while in there:
+  `wk-send-custom-reply` was already correctly resolving `client_id` from the message row it
+  queries (no fix needed); `wk-phone-webhook`/`wk-debug-thread` don't need client routing at all
+  (no Apollo key involved on that side). One separate, unrelated gap found and logged (not
+  fixed, not urgent): `wk-poll-replies` (Gmail reply detection) is still hardcoded to Workenvo
+  only — currently dormant for The HR Company since Outlook sending doesn't exist yet, but will
+  need the same treatment once it does.
+
+### Final status, 2026-07-22
+
+Everything below is real, deployed, and confirmed working with actual production data — not
+just written, not just typechecked:
+
+- **Drafting pipeline**: live, unattended, producing real on-ICP prospects (Michael Dixon, Tim
+  Murphy, John Wallace, Ray Cole, Fergal Meagher confirmed so far) via Antigravity/Gemini,
+  scheduled at a config-driven time (`20:00` Europe/Dublin by default, changeable with a plain
+  SQL `UPDATE`, no redeploy).
+- **Multi-tenancy**: every Edge Function that needs to know which client it's serving does so
+  correctly — `wk-check-contacted`/`wk-find-email`/`wk-insert-draft`/`wk-notify` via an explicit
+  `client_slug`, `wk-reveal-phone` by resolving the contact's own `client_id` (more robust,
+  can't be spoofed). Apollo credits, drafts, and contacts for the two clients can no longer
+  cross-contaminate anywhere this was checked.
+- **Frontend**: The HR Company's real login shows real data — Command Center, Outreach Feed,
+  prospect detail, Funnel board, phone reveal — all confirmed live in browser, not just assumed
+  from the architecture.
+- **Safety**: `wk-send-email` refuses any client whose `send_provider` isn't `"gmail"`, so
+  Outlook not existing yet can't cause an accidental send.
+- **Genuinely still open, neither blocking anything**: (1) Outlook/Microsoft 365 access model,
+  waiting on a conversation with Bianca; (2) a real VM `free -h`/`ps aux` check, low priority
+  given the per-client mutual exclusion is already confirmed safe; (3) `wk-poll-replies` will
+  need the same per-client treatment once Outlook sending exists, logged as a known gap for
+  that future work, not before.
 
 ## Not built yet / explicitly deferred
 - CI/CD is manual by choice (redeploy = SSH + `git pull` + restart, not on every push).

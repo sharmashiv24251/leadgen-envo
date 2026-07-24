@@ -62,7 +62,7 @@ export default function TopBar() {
     router.push("/login");
   }
 
-  const brandName = account === "workenvo" ? "Workenvo" : "thehrcompany";
+  const brandName = account === "workenvo" ? "Workenvo" : "The HR Company";
   const section = NAV_TABS.find((tab) => tab.match(pathname ?? "/"))?.label ?? "Command Center";
   const showBackLink = pathname?.startsWith("/emails");
   const showNav = account !== null && pathname !== "/login";

@@ -1,41 +1,36 @@
-const AUTH_STORAGE_KEY = "thc-command-center-auth";
-const ACCOUNT_STORAGE_KEY = "thc-command-center-account";
-
-// Both accounts are real Supabase-backed clients now -- there is no mock/demo account
-// anymore. "thehrcompany" used to route to an in-memory fake dataset (lib/mockData.ts);
-// it now routes to lib/thehrcompanyData.ts, same as "workenvo" always has.
+// Client-side auth helpers. Credential checking and session signing now live server-side
+// (lib/serverAuth.ts, app/api/login, proxy.ts) -- this file only reads the non-sensitive
+// "which account" cookie the server sets alongside the httpOnly session cookie, and calls
+// the login/logout API routes. It intentionally holds no secrets.
 export type Account = "workenvo" | "thehrcompany";
 
-export const VALID_OPERATOR_ID = "thehrcompany";
-export const VALID_ACCESS_KEY = "thehrcompany";
-
-export const WORKENVO_EMAIL = "workenvo";
-export const WORKENVO_PASSWORD = "workenvo";
-
-/** Returns which account the given credentials belong to, or null if invalid. */
-export function checkCredentials(id: string, secret: string): Account | null {
-  if (id === VALID_OPERATOR_ID && secret === VALID_ACCESS_KEY) return "thehrcompany";
-  if (id === WORKENVO_EMAIL && secret === WORKENVO_PASSWORD) return "workenvo";
-  return null;
+function readCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
 }
 
 export function isAuthenticated(): boolean {
-  if (typeof window === "undefined") return false;
-  return window.localStorage.getItem(AUTH_STORAGE_KEY) === "granted";
+  return readCookie("thc-account") !== null;
 }
 
 /** Which account is logged in. Defaults to "thehrcompany" if unset/unknown. */
 export function getAccount(): Account {
-  if (typeof window === "undefined") return "thehrcompany";
-  return window.localStorage.getItem(ACCOUNT_STORAGE_KEY) === "workenvo" ? "workenvo" : "thehrcompany";
+  return readCookie("thc-account") === "workenvo" ? "workenvo" : "thehrcompany";
 }
 
-export function grantAccess(account: Account): void {
-  window.localStorage.setItem(AUTH_STORAGE_KEY, "granted");
-  window.localStorage.setItem(ACCOUNT_STORAGE_KEY, account);
+/** Returns the account on success, or null if the credentials were rejected. */
+export async function login(id: string, secret: string): Promise<Account | null> {
+  const res = await fetch("/api/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, secret }),
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.account === "workenvo" || data.account === "thehrcompany" ? data.account : null;
 }
 
-export function revokeAccess(): void {
-  window.localStorage.removeItem(AUTH_STORAGE_KEY);
-  window.localStorage.removeItem(ACCOUNT_STORAGE_KEY);
+export async function revokeAccess(): Promise<void> {
+  await fetch("/api/logout", { method: "POST" });
 }

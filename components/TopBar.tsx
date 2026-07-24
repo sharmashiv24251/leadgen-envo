@@ -57,8 +57,8 @@ export default function TopBar() {
     setAccount(isAuthenticated() ? getAccount() : null);
   }, [pathname]);
 
-  function handleSignOut() {
-    revokeAccess();
+  async function handleSignOut() {
+    await revokeAccess();
     router.push("/login");
   }
 

@@ -21,7 +21,7 @@ import {
 } from "@/lib/outreachApi";
 import { queryKeys } from "@/lib/queryKeys";
 
-// The account check must happen client-side (localStorage) and can't run during SSR/the
+// The account check must happen client-side (reads a cookie) and can't run during SSR/the
 // first client render without risking a hydration mismatch. useLayoutEffect flips this
 // before the browser paints, so — combined with `enabled` below — this default frame is
 // what briefly exists, never what's actually painted.

@@ -1,31 +1,30 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
-import { checkCredentials, grantAccess, isAuthenticated } from "@/lib/auth";
+import { useState, type FormEvent } from "react";
+import { login } from "@/lib/auth";
 
 export default function LoginPage() {
   const router = useRouter();
   const [operatorId, setOperatorId] = useState("");
   const [accessKey, setAccessKey] = useState("");
   const [denied, setDenied] = useState(false);
+  const [pending, setPending] = useState(false);
 
-  useEffect(() => {
-    if (isAuthenticated()) {
-      router.replace("/");
-    }
-  }, [router]);
+  // No client-side "already authed" redirect needed here -- proxy.ts already redirects
+  // an authenticated request away from /login before this page ever renders.
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setPending(true);
 
-    const account = checkCredentials(operatorId, accessKey);
+    const account = await login(operatorId, accessKey);
     if (account) {
-      grantAccess(account);
       router.push("/");
       return;
     }
 
+    setPending(false);
     setDenied(true);
     setAccessKey("");
   }
@@ -85,9 +84,10 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            className="mt-2 rounded-full bg-accent-strong px-4 py-2 text-sm font-medium text-accent-ink transition-opacity hover:opacity-90 active:scale-[0.97]"
+            disabled={pending}
+            className="mt-2 rounded-full bg-accent-strong px-4 py-2 text-sm font-medium text-accent-ink transition-opacity hover:opacity-90 active:scale-[0.97] disabled:opacity-60"
           >
-            Authenticate
+            {pending ? "Authenticating…" : "Authenticate"}
           </button>
         </form>
       </div>
